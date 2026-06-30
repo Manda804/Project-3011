@@ -1,0 +1,101 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Road Editor{% endblock %}
+{% block page_heading %}Road Editor{% endblock %}
+{% block page_description %}Draw, select, and manage road paths and hazards in a connected GIS experience.{% endblock %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[0.65fr_0.35fr]">
+    <section class="space-y-6">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Live map editor</h2>
+                    <p class="mt-1 text-sm text-slate-400">Select a road or hazard and view it with interactive map controls.</p>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <a href="{% url 'dashboard-roads' %}" class="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white">Road list</a>
+                    <a href="{% url 'dashboard-hazards' %}" class="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white">Hazard list</a>
+                </div>
+            </div>
+
+            {% if selected_road %}
+            <p class="mt-3 text-xs text-slate-500">
+                Click a node marker on the map to remove it from <span class="text-slate-300">{{ selected_road.name }}</span>.
+            </p>
+            {% endif %}
+
+            <div id="road-editor-map" class="mt-6 h-[560px] rounded-3xl border border-slate-800 bg-slate-900"></div>
+        </div>
+    </section>
+    <aside class="space-y-6">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Road selection</h3>
+            <div class="mt-4 space-y-3">
+                {% for road in roads %}
+                <a href="?road_id={{ road.id }}" class="block rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white transition hover:bg-slate-800">{{ road.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if selected_road %}
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Selected road</h3>
+            <div class="mt-4 space-y-3 text-sm text-slate-300">
+                <div class="flex justify-between border-b border-slate-800 pb-2">
+                    <span class="text-slate-500">Name</span>
+                    <span class="font-medium text-white">{{ selected_road.name }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500">Speed limit</span>
+                    <span class="font-medium text-white">{{ selected_road.speed_limit }} km/h</span>
+                </div>
+            </div>
+
+            {% if selected_road.hazards.count > 0 %}
+            <div class="mt-4">
+                <h4 class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Hazard details</h4>
+                <ul class="mt-2 space-y-2">
+                    {% for hazard in selected_road.hazards.all %}
+                    <li class="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+                        <span class="font-medium text-orange-400">{{ hazard.hazard_type }}</span>
+                        <span class="block text-slate-500 mt-1">
+                            Lat {{ hazard.latitude|floatformat:5 }}, Lng {{ hazard.longitude|floatformat:5 }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Guidelines</h3>
+            <ul class="mt-4 space-y-2 text-sm text-slate-400">
+                <li>Choose a road from the list to inspect its route.</li>
+                <li>Use the layer switcher (top-right of the map) to toggle street, satellite, or traffic view.</li>
+                <li>Click a node marker on the selected road to delete it.</li>
+            </ul>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+{% csrf_token %}
+<script>
+    const roads = {{ roads_json|safe }};
+    const hazards = {{ hazards_json|safe }};
+    const selectedRoadId = {% if selected_road %}{{ selected_road.id }}{% else %}null{% endif %};
+    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+    // Adjust this to match your actual delete endpoint
+    const NODE_DELETE_URL_TEMPLATE = (nodeId) => `/api/nodes/${nodeId}/`;
+
+    const map = L.map('road-editor-map', {
+        center: [ -1.4167, 30.8531 ],
+        zoom: 12,
+        zoomControl: false,
+    });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    // Base layers
+    const streetLayer =

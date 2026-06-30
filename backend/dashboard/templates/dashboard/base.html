@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Dashboard{% endblock %} | Kitwe GIS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: #020617;
+            color: #f8fafc;
+        }
+        .gradient-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 24%),
+                        radial-gradient(circle at 20% 30%, rgba(16,185,129,0.12), transparent 20%);
+            z-index: 0;
+        }
+        .sidebar a.active {
+            background: rgba(56,189,248,0.16);
+            color: #e0f2fe;
+        }
+        .leaflet-container {
+            background: #020617;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen overflow-x-hidden">
+    <div class="gradient-layer"></div>
+    <div class="relative flex min-h-screen">
+        <aside class="sidebar z-20 w-72 shrink-0 border-r border-slate-800 bg-slate-950/95 px-6 py-8 text-slate-200 backdrop-blur">
+            <a href="{% url 'dashboard-home' %}" class="mb-8 inline-flex items-center gap-3 text-2xl font-semibold text-white">Kitwe GIS</a>
+            <p class="mb-8 text-sm text-slate-400">Road asset management, device monitoring and live violation analysis.</p>
+            <nav class="space-y-2 text-sm">
+                <a href="{% url 'dashboard-home' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'dashboard' %}active{% endif %}">Overview</a>
+                <a href="{% url 'dashboard-roads' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'roads' %}active{% endif %}">Roads</a>
+                <a href="{% url 'dashboard-road-editor' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'road_editor' %}active{% endif %}">Road Editor</a>
+                <a href="{% url 'dashboard-hazards' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'hazards' %}active{% endif %}">Hazards</a>
+                <a href="{% url 'dashboard-devices' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'devices' %}active{% endif %}">Devices</a>
+                <a href="{% url 'dashboard-violations' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'violations' %}active{% endif %}">Violations</a>
+                <a href="{% url 'dashboard-versions' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'versions' %}active{% endif %}">Versions</a>
+                <a href="{% url 'dashboard-analytics' %}" class="group flex items-center gap-3 rounded-3xl px-4 py-3 transition {% if page == 'analytics' %}active{% endif %}">Analytics</a>
+            </nav>
+        </aside>
+        <main class="relative flex-1 overflow-hidden">
+            <header class="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-8 py-5 backdrop-blur">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-semibold text-white">{% block page_heading %}Dashboard{% endblock %}</h1>
+                        <p class="mt-1 text-sm text-slate-400">{% block page_description %}Manage roads, hazards, devices and analytics from one workspace.{% endblock %}</p>
+                    </div>
+                    <div class="inline-flex items-center gap-3 text-sm text-slate-300">
+                        <span class="rounded-full bg-slate-900 px-3 py-2">Dark theme</span>
+                        <span class="rounded-full bg-slate-900 px-3 py-2">Tailwind UI</span>
+                    </div>
+                </div>
+            </header>
+            <section class="relative overflow-y-auto px-8 py-8">
+                {% block content %}{% endblock %}
+            </section>
+        </main>
+    </div>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

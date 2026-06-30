@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kitwe Map Editor — CBU Smart Road Speed Monitoring</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html,body,#map { height: 100%; width: 100%; margin:0; }
+    body { overscroll-behavior: none; }
+    /* Fixed fullscreen layout */
+    .app { position:fixed; inset:0; display:flex; }
+    /* Left drawer */
+    .drawer { width: 360px; max-width: 85vw; z-index: 900; backdrop-filter: blur(12px); background: rgba(10,12,20,0.6); border-right: 1px solid rgba(148,163,184,0.08); position: fixed; left: 0; top: 0; bottom: 0; overflow-y: auto; transition: transform 0.36s cubic-bezier(.2,.9,.35,1); }
+    .drawer.closed { transform: translateX(-100%); }
+    .drawer.open { transform: translateX(0); }
+    /* Glass card for controls */
+    .glass { background: rgba(18,24,33,0.7); border:1px solid rgba(148,163,184,0.06); backdrop-filter: blur(10px); }
+    /* Floating controls top-left small toggles */
+    .controls { position:absolute; left:16px; top:16px; z-index:850; display:flex; gap:8px; }
+    .mode-btn { background: rgba(2,6,23,0.6); border:1px solid rgba(99,102,241,0.12); padding:8px 12px; border-radius:999px; color:#dbeafe; cursor:pointer; }
+    .mode-btn.active { box-shadow: 0 0 12px rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.45); }
+    /* Road highlight */
+    .road-default { color: #60a5fa; weight:4; opacity:0.9; }
+    .road-dim { opacity:0.15; }
+    .road-selected { color: #34d399; weight:6; opacity:1; stroke-dasharray:0; }
+    /* Hazard styles */
+    .hazard-marker { background: rgba(219,39,119,0.95); border-radius:999px; width:18px; height:18px; display:block; }
+    .hazard-circle { color: rgba(249,115,22,0.18); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Hamburger menu button (top left) -->
+    <button id="menuButton" class="fixed left-4 top-4 z-950 p-3 rounded-lg bg-slate-900/80 border border-slate-700 text-white hover:bg-slate-800 transition">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+
+    <div id="drawer" class="drawer open p-5 glass">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-white text-lg font-semibold">Map Tools</h3>
+          <p class="text-xs text-slate-300 mt-1">Kitwe (editing locked)</p>
+        </div>
+        <button id="toggleDrawer" class="text-slate-300 hover:text-white text-sm">✕</button>
+      </div>
+
+      <div class="mt-6">
+        <div class="flex gap-2 flex-wrap">
+          <button class="mode-btn active" data-mode="view">View</button>
+          <button class="mode-btn" data-mode="road_edit">Road Edit</button>
+          <button class="mode-btn" data-mode="road_info">Road Info</button>
+          <button class="mode-btn" data-mode="hazard">Hazard</button>
+        </div>
+
+        <div id="modePanels" class="mt-6 space-y-4 text-slate-200">
+          <!-- View Panel -->
+          <div data-panel="view">
+            <p class="text-sm">Default map view. Click a road to open Road Information.</p>
+            <div class="mt-3">
+              <button id="refreshBtn" class="px-3 py-2 rounded bg-sky-500 text-white">Reload roads</button>
+            </div>
+          </div>
+
+          <!-- Road Edit Panel -->
+          <div data-panel="road_edit" style="display:none;">
+            <p class="text-sm">Create roads by clicking points on the map. Right-click to finish.</p>
+            <div class="mt-3 space-y-2">
+              <button id="startCreate" class="px-3 py-2 rounded bg-emerald-500 text-black">Create Road</button>
+              <button id="cancelCreate" class="px-3 py-2 rounded bg-gray-700 text-white" disabled>Cancel</button>
+              <button id="saveDraft" class="px-3 py-2 rounded bg-sky-500 text-white" disabled>Save Draft</button>
+            </div>
+            <div class="mt-4 glass p-3 rounded">
+              <label class="text-xs text-slate-300">Road name</label>
+              <input id="roadName" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" placeholder="Main Street" />
+              <label class="text-xs mt-3 text-slate-300">Speed limit (km/h)</label>
+              <input id="roadSpeed" type="number" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" placeholder="50" />
+            </div>
+          </div>
+
+          <!-- Road Info Panel -->
+          <div data-panel="road_info" style="display:none;">
+            <h4 id="infoName" class="text-white font-semibold">Road name</h4>
+            <div class="mt-2 text-sm text-slate-300">Speed limit: <span id="infoSpeed">-</span> km/h</div>
+            <div class="mt-3 text-sm text-slate-300">Nodes (lat,lng):</div>
+            <pre id="infoNodes" class="mt-2 text-xs text-slate-200 bg-transparent p-2 rounded" style="max-height:160px;overflow:auto"></pre>
+            <div class="mt-3 flex gap-2">
+              <button id="editRoadBtn" class="px-3 py-2 rounded bg-amber-500 text-black">Edit</button>
+              <button id="deleteRoadBtn" class="px-3 py-2 rounded bg-red-600 text-white">Delete</button>
+              <button id="saveInfoBtn" class="px-3 py-2 rounded bg-sky-500 text-white">Save changes</button>
+            </div>
+          </div>
+
+          <!-- Hazard Panel -->
+          <div data-panel="hazard" style="display:none;">
+            <p class="text-sm">Click on the map to place a hazard. Choose type and radius below.</p>
+            <div class="mt-3">
+              <select id="hazardType" class="w-full p-2 bg-transparent border border-slate-700 rounded text-white">
+                <option value="school">School Zone</option>
+                <option value="bump">Speed Bump</option>
+                <option value="curve">Sharp Curve</option>
+                <option value="construction">Construction Zone</option>
+              </select>
+              <label class="text-xs text-slate-300 mt-3">Warning radius (m)</label>
+              <input id="hazardRadius" type="number" value="50" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" />
+            </div>
+            <div class="mt-3">
+              <button id="clearHazards" class="px-3 py-2 rounded bg-gray-700 text-white">Clear placed hazards (local)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 text-xs text-slate-400">Tip: while creating a road, right-click to finish and open the info panel to save to backend.</div>
+    </div>
+
+    <div id="mapContainer" class="fixed inset-0 w-full h-full">
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <script>
+    // Kitwe bounds and center
+    const KITWE_CENTER = [-12.8075, 28.2132];
+    const KITWE_BOUNDS = [[-13.05, 27.85], [-12.55, 28.55]]; // SW, NE
+
+    // App state
+    let mode = 'view';
+    let map, roadsLayer, hazardsLayer, drawnTemp;
+    let creating = false;
+    let currentDraft = {name:'', speed:0, nodes:[]};
+    let roads = [];
+    let selectedRoad = null;
+
+    function initMap(){
+      map = L.map('map', {
+        center: KITWE_CENTER,
+        zoom: 13,
+        minZoom: 12,
+        maxZoom: 18,
+        zoomControl: true,
+        maxBounds: KITWE_BOUNDS,
+        maxBoundsViscosity: 1.0,
+        crs: L.CRS.EPSG3857
+      });
+
+      // dark tiles (Carto Dark Matter)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+
+      roadsLayer = L.layerGroup().addTo(map);
+      hazardsLayer = L.layerGroup().addTo(map);
+
+      map.on('click', onMapClick);
+      map.on('contextmenu', onMapRightClick);
+
+      loadRoads();
+      loadHazards();
+    }
+
+    // Mode switching UI
+    document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', (e)=>{
+      document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));
+      e.target.classList.add('active');
+      setMode(e.target.dataset.mode);
+    }));
+
+    document.getElementById('toggleDrawer').addEventListener('click', ()=>{
+      const d = document.getElementById('drawer');
+      d.classList.toggle('closed');
+      d.classList.toggle('open');
+    });
+
+    document.getElementById('menuButton').addEventListener('click', ()=>{
+      const d = document.getElementById('drawer');
+      d.classList.remove('closed');
+      d.classList.add('open');
+    });
+
+    function setMode(m){
+      mode = m;
+      document.querySelectorAll('[data-panel]').forEach(p=>p.style.display='none');
+      const panel = document.querySelector('[data-panel="'+m+'"]');
+      if(panel) panel.style.display = 'block';
+      // visuals
+      if(mode === 'road_edit'){
+        map.getContainer().style.cursor = 'crosshair';
+      } else { map.getContainer().style.cursor = ''; }
+      updateRoadStyles();
+    }
+
+    // load roads from backend (expects JSON array with id,name,speed_limit,nodes:[{latitude,longitude},...])
+    async function loadRoads(){
+      roadsLayer.clearLayers(); roads = [];
+      try{
+        const res = await fetch('/api/roads/');
+        if(!res.ok) throw new Error('no api');
+        const data = await res.json();
+        const roadsList = data.roads || data;
+        roadsList.forEach(r => {
+          // Convert API format (nodes with latitude/longitude) to frontend format (array [lat,lng])
+          const convertedNodes = r.nodes.map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
+          const converted = {...r, speed: r.speed_limit, nodes: convertedNodes};
+          addRoadToMap(converted, false);
+        });
+      }catch(err){
+        console.warn('Could not load roads from API, using local sample');
+        // sample road fallback (small line in Kitwe)
+        const sample = {id:'local-1', name:'Sample Road A', speed:50, nodes:[[-12.805,28.21],[-12.802,28.215],[-12.8,28.22]]};
+        addRoadToMap(sample, false);
+      }
+    }
+
+    function addRoadToMap(road, zoomTo=false){
+      const latlngs = road.nodes.map(n=>[n[0],n[1]]);
+      const poly = L.polyline(latlngs, {color:'#60a5fa', weight:4, opacity:0.95}).addTo(roadsLayer);
+      poly.roadId = road.id;
+      poly.roadData = road;
+      poly.on('click', ()=>onRoadClick(poly));
+      roads.push(poly);
+      if(zoomTo) map.fitBounds(poly.getBounds(), {padding:[40,40]});
+    }
+
+    function updateRoadStyles(){
+      roads.forEach(r => {
+        if(selectedRoad && r !== selectedRoad){
+          r.setStyle({opacity:0.12});
+        } else if(r === selectedRoad){
+          r.setStyle({color:'#34d399', weight:6, opacity:1});
+        } else {
+          r.setStyle({color:'#60a5fa', weight:4, opacity:0.95});
+        }
+      });
+    }
+
+    function onRoadClick(poly){
+      selectedRoad = poly;
+      setMode('road_info');
+      populateRoadInfo(poly.roadData);
+      updateRoadStyles();
+      // zoom to road
+      map.fitBounds(poly.getBounds(), {padding:[80,80]});
+    }
+
+    function populateRoadInfo(data){
+      document.getElementById('infoName').innerText = data.name || 'Unnamed road';
+      document.getElementById('infoSpeed').innerText = (data.speed || data.speed_limit || 0);
+      document.getElementById('infoNodes').innerText = JSON.stringify(data.nodes, null, 2);
+    }
+
+    // Hazard loading
+    async function loadHazards(){
+      hazardsLayer.clearLayers();
+      try{
+        const res = await fetch('/api/hazards/');
+        if(!res.ok) throw new Error('no api hazards');
+        const data = await res.json();
+        const hazardsList = data.hazards || data;
+        hazardsList.forEach(h => addHazardToMap(h));
+      }catch(err){ console.warn('No hazards API, skipping.'); }
+    }
+
+    function addHazardToMap(h){
+      const lat = typeof h.latitude === 'number' ? h.latitude : parseFloat(h.latitude);
+      const lng = typeof h.longitude === 'number' ? h.longitude : parseFloat(h.longitude);
+      const radius = h.warning_distance || h.radius || 50;
+      const marker = L.circle([lat, lng], {radius:radius, color:'#fb923c', fillOpacity:0.15}).addTo(hazardsLayer);
+      marker.hazardData = h;
+    }
+
+    // Map click behaviors
+    function onMapClick(e){
+      if(mode === 'road_edit' && creating){
+        currentDraft.nodes.push([e.latlng.lat, e.latlng.lng]);
+        if(drawnTemp) drawnTemp.addLatLng(e.latlng);
+        else drawnTemp = L.polyline([e.latlng], {color:'#f472b6', weight:3, dashArray:'6 4'}).addTo(map);
+        // enable cancel/save when there are nodes
+        document.getElementById('cancelCreate').disabled = false;
+        document.getElementById('saveDraft').disabled = currentDraft.nodes.length < 2;
+      } else if(mode === 'hazard'){
+        const t = document.getElementById('hazardType').value;
+        const r = Number(document.getElementById('hazardRadius').value) || 50;
+        const payload = {hazard_type: t, latitude: e.latlng.lat, longitude: e.latlng.lng, warning_distance: r, road: roads.length > 0 ? roads[0].roadId : null};
+        // add locally
+        const circle = L.circle([e.latlng.lat,e.latlng.lng], {radius:r, color:'#fb923c', fillOpacity:0.12}).addTo(hazardsLayer);
+        circle.hazardData = payload;
+        // POST to backend (only if we have a road)
+        if(payload.road){
+          fetch('/api/hazards/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(res=>console.log('hazard saved',res)).catch(()=>console.warn('hazard save failed'));
+        } else {
+          console.warn('Hazard created locally but not saved to backend (no road selected)');
+        }
+      }
+    }
+
+    function onMapRightClick(e){
+      if(mode === 'road_edit' && creating){
+        finishRoadCreation();
+      }
+    }
+
+    // Drawing controls
+    document.getElementById('startCreate').addEventListener('click', ()=>{
+      creating = true; currentDraft = {name:'', speed:0, nodes:[]};
+      drawnTemp = null;
+      document.getElementById('cancelCreate').disabled = false;
+      document.getElementById('saveDraft').disabled = true;
+      document.getElementById('roadName').value = '';
+      document.getElementById('roadSpeed').value = '';
+      alert('Road create: click map to add points. Right-click to finish.');
+    });
+
+    document.getElementById('cancelCreate').addEventListener('click', ()=>{
+      creating = false; currentDraft = {name:'', speed:0, nodes:[]};
+      if(drawnTemp){ map.removeLayer(drawnTemp); drawnTemp = null; }
+      document.getElementById('cancelCreate').disabled = true; document.getElementById('saveDraft').disabled = true;
+    });
+
+    document.getElementById('saveDraft').addEventListener('click', ()=>{
+      if(currentDraft.nodes.length < 2) return alert('Add at least two points');
+      finishRoadCreation();
+    });
+
+    function finishRoadCreation(){
+      creating = false;
+      // collect name/speed
+      currentDraft.name = document.getElementById('roadName').value || 'Unnamed road';
+      currentDraft.speed = Number(document.getElementById('roadSpeed').value) || 50;
+      if(currentDraft.nodes.length < 2) return alert('Need at least two points');
+      // render permanent polyline
+      const newRoad = {id: 'local-'+Date.now(), name: currentDraft.name, speed: currentDraft.speed, nodes: currentDraft.nodes};
+      addRoadToMap(newRoad, true);
+      if(drawnTemp){ map.removeLayer(drawnTemp); drawnTemp = null; }
+      document.getElementById('cancelCreate').disabled = true; document.getElementById('saveDraft').disabled = true;
+      
+      // Convert to API format (nodes as objects with latitude/longitude)
+      const apiPayload = {
+        name: currentDraft.name,
+        speed_limit: currentDraft.speed,
+        nodes: currentDraft.nodes.map(n => ({latitude: n[0], longitude: n[1]}))
+      };
+      
+      // POST to backend
+      fetch('/api/roads/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(apiPayload)})
+        .then(res=>{
+          if(!res.ok) throw new Error('save failed');
+          return res.json();
+        }).then(saved => {
+          console.log('Saved road', saved);
+          // replace local id with saved id
+          const lastRoad = roads[roads.length-1];
+          if(lastRoad) lastRoad.roadId = saved.id;
+        }).catch(err=>{
+          console.warn('Backend save failed', err);
+        });
+      // open info panel for the new road
+      // select the newly added road
+      const r = roads[roads.length-1]; selectedRoad = r; setMode('road_info'); populateRoadInfo(newRoad);
+      updateRoadStyles();
+    }
+
+    // Info panel buttons
+    document.getElementById('deleteRoadBtn').addEventListener('click', ()=>{
+      if(!selectedRoad) return; if(!confirm('Delete this road?')) return;
+      // remove layer
+      roadsLayer.removeLayer(selectedRoad);
+      // call backend
+      fetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id),{method:'DELETE'}).catch(()=>console.warn('delete failed'));
+      selectedRoad = null; setMode('view'); updateRoadStyles();
+    });
+
+    document.getElementById('editRoadBtn').addEventListener('click', ()=>{
+      if(!selectedRoad) return; // allow editing via nodes list: open a prompt to add/remove
+      const nodes = selectedRoad.roadData.nodes.slice();
+      const newNodes = prompt('Edit nodes as JSON array of [lat,lng] pairs', JSON.stringify(nodes));
+      try{
+        const parsed = JSON.parse(newNodes);
+        selectedRoad.roadData.nodes = parsed;
+        selectedRoad.setLatLngs(parsed.map(n=>[n[0],n[1]]));
+        populateRoadInfo(selectedRoad.roadData);
+      }catch(err){ alert('Invalid JSON'); }
+    });
+
+    document.getElementById('saveInfoBtn').addEventListener('click', ()=>{
+      if(!selectedRoad) return;
+      // read interface values
+      const s = Number(document.getElementById('infoSpeed').innerText) || selectedRoad.roadData.speed;
+      selectedRoad.roadData.speed = s;
+      // save to backend (convert to API format)
+      const apiPayload = {
+        name: selectedRoad.roadData.name,
+        speed_limit: s
+      };
+      fetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(apiPayload)})
+        .then(r=>console.log('saved info',r)).catch(()=>console.warn('save info failed'));
+      alert('Saved (attempted).');
+    });
+
+    // refresh button
+    document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadRoads(); loadHazards(); });
+
+    // init
+    initMap();
+
+    // drawer panel switching on startup
+    setMode('view');
+
+    // ensure fixed no-scroll
+    document.documentElement.style.height = '100%';
+    document.body.style.height = '100%';
+  </script>
+</body>
+</html>

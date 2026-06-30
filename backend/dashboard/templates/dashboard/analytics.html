@@ -1,0 +1,59 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Analytics{% endblock %}
+{% block page_heading %}Analytics{% endblock %}
+{% block page_description %}Review fleet status, road risk, and violation severity trends for smarter operations.{% endblock %}
+{% block content %}
+<div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+    <div class="space-y-6">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-lg font-semibold text-white">Device availability</h3>
+            <div class="mt-5 grid gap-4 sm:grid-cols-3">
+                <div class="rounded-3xl bg-slate-900 p-5 text-sm text-slate-200">
+                    <p class="text-slate-400">Online</p>
+                    <p class="mt-3 text-3xl font-semibold text-white">{{ status_counts.online }}</p>
+                </div>
+                <div class="rounded-3xl bg-slate-900 p-5 text-sm text-slate-200">
+                    <p class="text-slate-400">Recent</p>
+                    <p class="mt-3 text-3xl font-semibold text-white">{{ status_counts.recent }}</p>
+                </div>
+                <div class="rounded-3xl bg-slate-900 p-5 text-sm text-slate-200">
+                    <p class="text-slate-400">Offline</p>
+                    <p class="mt-3 text-3xl font-semibold text-white">{{ status_counts.offline }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-lg font-semibold text-white">Road hazard ranking</h3>
+            <div class="mt-5 space-y-4">
+                {% for road in road_usage %}
+                <div class="rounded-3xl bg-slate-900 p-4 text-sm text-slate-200">
+                    <div class="flex items-center justify-between gap-3">
+                        <span>{{ road.name }}</span>
+                        <span class="font-semibold text-white">{{ road.hazard_count }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <aside class="space-y-6">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Severity distribution</h3>
+            <div class="mt-5 space-y-4">
+                {% for row in severity_counts %}
+                <div class="rounded-3xl bg-slate-900 p-4 text-sm text-slate-200">
+                    <div class="flex items-center justify-between gap-3">
+                        <span>{{ row.severity|capfirst }}</span>
+                        <span class="font-semibold text-white">{{ row.count }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Insights</h3>
+            <p class="mt-3 text-sm text-slate-300">Focus maintenance on the roads with the highest hazard counts and keep offline devices back online to reduce violations.</p>
+        </div>
+    </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,381 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CBU Smart Road Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0e12;
+    --panel:#15181f;
+    --copper:#c9742e;
+    --copper-bright:#eb9a4f;
+    --patina:#3f8f7a;
+    --parchment:#f3ead9;
+    --line: rgba(243,234,217,0.12);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--ink);
+    color:var(--parchment);
+    font-family:'IBM Plex Sans', sans-serif;
+    overflow-x:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+
+  /* ---------- topbar ---------- */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:1.1rem 2.5rem;
+    background:linear-gradient(180deg, rgba(12,14,18,0.92), rgba(12,14,18,0));
+    backdrop-filter:blur(6px);
+  }
+  .brand{display:flex; align-items:center; gap:0.85rem;}
+  .crest{
+    width:46px; height:46px; border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, var(--copper-bright), var(--copper) 55%, #7a3f16 100%);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-weight:700; font-size:1.05rem; color:#1a0d02;
+    box-shadow:0 0 0 2px rgba(243,234,217,0.18), 0 8px 22px rgba(201,116,46,0.35);
+    flex-shrink:0;
+  }
+  .brand-text .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:0.62rem; letter-spacing:0.32em;
+    text-transform:uppercase; color:var(--copper-bright); opacity:0.85;
+  }
+  .brand-text h1{font-family:'Fraunces', serif; font-size:1.05rem; font-weight:600; letter-spacing:0.01em; color:var(--parchment);}
+  nav{display:flex; gap:2.2rem; font-size:0.84rem;}
+  nav a{color:var(--parchment); text-decoration:none; opacity:0.7; transition:opacity .25s;}
+  nav a:hover{opacity:1;}
+  .cta-pill{
+    border:1px solid var(--copper); padding:0.55rem 1.2rem; border-radius:999px;
+    font-size:0.78rem; letter-spacing:0.02em; color:var(--copper-bright);
+    text-decoration:none; transition:all .25s;
+  }
+  .cta-pill:hover{background:var(--copper); color:#1a0d02;}
+
+  /* ---------- hero ---------- */
+  .hero{
+    position:relative; min-height:100vh; display:flex; flex-direction:column;
+    justify-content:center; padding:8rem 2.5rem 4rem; overflow:hidden;
+  }
+  .hero::before{
+    content:''; position:absolute; inset:0; opacity:0.5;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(243,234,217,0.25) 1px, transparent 0),
+      radial-gradient(1px 1px at 70% 60%, rgba(243,234,217,0.18) 1px, transparent 0);
+    background-size: 140px 140px, 220px 220px;
+  }
+  .roadlines{position:absolute; inset:0; z-index:0; opacity:0.55;}
+  .roadlines path{
+    fill:none; stroke:var(--copper); stroke-width:1.3; stroke-dasharray:6 10;
+    animation: dash 38s linear infinite;
+  }
+  .roadlines .secondary{stroke:var(--patina); stroke-width:0.8; opacity:0.55; animation-duration:55s;}
+  @keyframes dash{ to{ stroke-dashoffset:-1000; } }
+
+  .hero-grid{position:relative; z-index:2; display:grid; grid-template-columns:1.15fr 0.85fr; gap:3rem; align-items:end;}
+  .eyebrow-row{display:flex; align-items:center; gap:0.9rem; margin-bottom:1.4rem; opacity:0; animation: rise .9s ease forwards .15s;}
+  .eyebrow-row .rule{width:42px; height:1px; background:var(--copper-bright);}
+  .eyebrow-row span{font-family:'IBM Plex Mono', monospace; font-size:0.7rem; letter-spacing:0.34em; text-transform:uppercase; color:var(--copper-bright);}
+
+  h2.headline{
+    font-family:'Fraunces', serif; font-weight:600; line-height:0.98;
+    font-size:clamp(2.6rem, 6vw, 5.4rem); letter-spacing:-0.01em;
+    opacity:0; animation: rise 1s ease forwards .3s;
+  }
+  h2.headline em{font-style:italic; font-weight:500; color:var(--copper-bright);}
+  .hero p.lede{
+    margin-top:1.6rem; max-width:34ch; font-size:1.05rem; line-height:1.6; color:rgba(243,234,217,0.75);
+    opacity:0; animation: rise 1s ease forwards .5s;
+  }
+  .hero-actions{display:flex; gap:1rem; margin-top:2.2rem; opacity:0; animation: rise 1s ease forwards .65s;}
+  .btn-primary{
+    background:linear-gradient(135deg, var(--copper-bright), var(--copper));
+    color:#1a0d02; font-weight:600; padding:0.95rem 1.7rem; border-radius:12px;
+    text-decoration:none; font-size:0.9rem; box-shadow:0 14px 30px rgba(201,116,46,0.28);
+    transition:transform .25s ease;
+  }
+  .btn-primary:hover{transform:translateY(-2px);}
+  .btn-ghost{
+    border:1px solid var(--line); color:var(--parchment); padding:0.95rem 1.7rem; border-radius:12px;
+    text-decoration:none; font-size:0.9rem; transition:border-color .25s;
+  }
+  .btn-ghost:hover{border-color:var(--copper-bright);}
+
+  .hero-stats{
+    display:flex; flex-direction:column; gap:1.1rem; opacity:0; animation: rise 1s ease forwards .8s;
+  }
+  .stat-card{
+    border:1px solid var(--line); border-radius:16px; padding:1.1rem 1.3rem;
+    background:rgba(21,24,31,0.6); backdrop-filter:blur(8px);
+    display:flex; justify-content:space-between; align-items:baseline;
+  }
+  .stat-card b{font-family:'Fraunces', serif; font-size:1.7rem; color:var(--copper-bright); font-weight:600;}
+  .stat-card span{font-size:0.75rem; color:rgba(243,234,217,0.55); font-family:'IBM Plex Mono', monospace; letter-spacing:0.03em;}
+
+  @keyframes rise{ from{opacity:0; transform:translateY(22px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ---------- section shell ---------- */
+  section{padding:6rem 2.5rem;}
+  .section-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:3rem; flex-wrap:wrap; gap:1rem;}
+  .section-head .eyebrow{font-family:'IBM Plex Mono', monospace; font-size:0.7rem; letter-spacing:0.3em; text-transform:uppercase; color:var(--copper-bright); margin-bottom:0.7rem; display:block;}
+  .section-head h3{font-family:'Fraunces', serif; font-size:clamp(1.9rem,3.2vw,2.6rem); font-weight:600; max-width:22ch;}
+  .section-head p{max-width:36ch; color:rgba(243,234,217,0.6); font-size:0.92rem; line-height:1.55;}
+
+  /* ---------- developer cascade ---------- */
+  .deck-wrap{
+    position:relative; min-height:560px; display:flex; align-items:center; justify-content:center;
+  }
+  .deck{
+    position:relative; width:280px; height:380px;
+  }
+  .dev-card{
+    position:absolute; inset:0; border-radius:20px; overflow:hidden;
+    border:1px solid var(--line);
+    background:linear-gradient(160deg, #1d212a, #11141a);
+    box-shadow:0 30px 60px rgba(0,0,0,0.45);
+    transition: transform 1s cubic-bezier(.22,.85,.32,1), opacity 1s ease, filter .8s ease;
+    display:flex; flex-direction:column; justify-content:flex-end;
+  }
+  .dev-card .photo{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-size:4.2rem; font-weight:600;
+    color:rgba(243,234,217,0.92);
+  }
+  .dev-card .photo-img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top;
+  }
+  .dev-card .scrim{
+    position:relative; z-index:1; padding:1.4rem 1.3rem 1.5rem;
+    background:linear-gradient(0deg, rgba(8,9,12,0.92) 10%, rgba(8,9,12,0.0) 90%);
+  }
+  .dev-card .role{font-family:'IBM Plex Mono', monospace; font-size:0.66rem; letter-spacing:0.24em; text-transform:uppercase; color:var(--copper-bright);}
+  .dev-card .name{font-family:'Fraunces', serif; font-size:1.3rem; font-weight:600; margin-top:0.35rem;}
+  .dev-card .focus{font-size:0.78rem; color:rgba(243,234,217,0.55); margin-top:0.45rem; line-height:1.5;}
+
+  .deck-nav{
+    display:flex; gap:0.6rem; justify-content:center; margin-top:2.6rem;
+  }
+  .deck-nav button{
+    width:9px; height:9px; border-radius:50%; border:1px solid var(--copper-bright);
+    background:transparent; cursor:pointer; padding:0; transition:all .3s;
+  }
+  .deck-nav button.is-active{background:var(--copper-bright); width:24px; border-radius:6px;}
+
+  /* ---------- features ---------- */
+  .feature-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:1.5rem;}
+  .feature-card{
+    border:1px solid var(--line); border-radius:18px; padding:1.8rem;
+    background:linear-gradient(165deg, rgba(63,143,122,0.06), rgba(21,24,31,0.4));
+    transition:transform .35s ease, border-color .35s ease;
+  }
+  .feature-card:hover{transform:translateY(-6px); border-color:var(--patina);}
+  .feature-card .mono-tag{font-family:'IBM Plex Mono', monospace; font-size:0.68rem; color:var(--patina); letter-spacing:0.2em;}
+  .feature-card h4{font-family:'Fraunces', serif; font-size:1.3rem; margin-top:0.8rem; font-weight:600;}
+  .feature-card p{font-size:0.88rem; color:rgba(243,234,217,0.6); margin-top:0.7rem; line-height:1.55;}
+
+  /* ---------- footer cta ---------- */
+  .closer{
+    text-align:center; padding:7rem 2rem; position:relative;
+    border-top:1px solid var(--line);
+  }
+  .closer h3{font-family:'Fraunces', serif; font-size:clamp(2rem,4.5vw,3.4rem); font-weight:600; max-width:18ch; margin:0 auto;}
+  .closer .btn-primary{display:inline-block; margin-top:2rem;}
+  footer{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:2rem 2.5rem; font-size:0.78rem; color:rgba(243,234,217,0.45);
+    border-top:1px solid var(--line);
+  }
+
+  @media (max-width: 880px){
+    .hero-grid{grid-template-columns:1fr;}
+    .feature-grid{grid-template-columns:1fr;}
+    nav{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="crest" style="background:none; padding:0;">
+      <img src="{% static 'logo.jpg' %}" alt="CBU" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+    </div>
+    <div class="brand-text">
+      <p class="eyebrow">Copperbelt University</p>
+      <h1>Smart Road Network</h1>
+    </div>
+  </div>
+  <nav>
+    <a href="#platform">Platform</a>
+    <a href="#team">Team</a>
+    <a href="#features">Features</a>
+  </nav>
+  <a class="cta-pill" href="/roads/">Open Dashboard</a>
+</header>
+
+<section class="hero">
+  <svg class="roadlines" viewBox="0 0 1200 800" preserveAspectRatio="none">
+    <path d="M -50 650 C 250 500, 450 750, 700 600 S 1100 350, 1300 420" />
+    <path class="secondary" d="M -50 200 C 200 350, 500 80, 750 250 S 1150 150, 1300 280" />
+    <path class="secondary" d="M -50 450 C 300 380, 600 520, 900 400 S 1200 480, 1300 460" />
+  </svg>
+
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow-row"><span class="rule"></span><span>Kitwe · Zambia · GIS Telemetry Platform</span></div>
+      <h2 class="headline">Mapping the<br>roads our<br><em>engineers</em> drive.</h2>
+      <p class="lede">A live road-monitoring system built by Copperbelt University engineering students tracking hazards, speed compliance, and infrastructure across the Copperbelt in real time.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="/road-editor/">Launch Live Map</a>
+        <a class="btn-ghost" href="#team">Meet the Team</a>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card"><span>Roads tracked</span><b>120+</b></div>
+      <div class="stat-card"><span>Active devices</span><b>40</b></div>
+      <div class="stat-card"><span>Hazards mapped</span><b>300+</b></div>
+    </div>
+  </div>
+</section>
+
+<section id="team">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">The Build Team</span>
+      <h3>Four engineers, one network.</h3>
+    </div>
+    <p>The CBU students behind the sensors, the server, and the map itself cycling through the deck below.</p>
+  </div>
+
+  <div class="deck-wrap">
+    <div class="deck" id="devDeck"></div>
+  </div>
+  <div class="deck-nav" id="deckNav"></div>
+</section>
+
+<section id="features">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">Platform</span>
+      <h3>Built for the road, not the spreadsheet.</h3>
+    </div>
+    <p>Every layer of the system from in-vehicle device to public dashboard designed around real Copperbelt road conditions.</p>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <span class="mono-tag">01 · LIVE TELEMETRY</span>
+      <h4>Device Tracking</h4>
+      <p>Speed, position, and road context streamed from in-vehicle units the moment they cross a mapped segment.</p>
+    </div>
+    <div class="feature-card">
+      <span class="mono-tag">02 · GIS EDITOR</span>
+      <h4>Road & Hazard Mapping</h4>
+      <p>Draw, edit, and publish road geometry and hazard zones directly on satellite and street layers.</p>
+    </div>
+    <div class="feature-card">
+      <span class="mono-tag">03 · VERSIONING</span>
+      <h4>Published Map History</h4>
+      <p>Every change is versioned, so devices and dashboards always sync to a known, auditable map state.</p>
+    </div>
+  </div>
+</section>
+
+<section class="closer">
+  <h3>See the Copperbelt move, in real time.</h3>
+  <a class="btn-primary" href="/roads/">Open the Dashboard</a>
+</section>
+
+<footer>
+  <span>© 2026 Copperbelt University · School of Engineering</span>
+  <span>Built in Kitwe</span>
+</footer>
+
+<script>
+  const developers = [
+    { photo:"{% static 'a.jpg' %}",   initials:'TJ', name:'Thomas Manda',   role:'Full-Stack & Firmware developer',     focus:'Django services, device ingest pipeline, and the live telemetry API.' },
+    { photo:"{% static 'b.jpg' %}",  initials:'WM', name:'Wazingwa Mugala',   role:'System Architect',      focus:'System design and architecture.' },
+    { photo:"{% static 'c.jpg' %}", initials:'NB', name:'Faith  ',  role:'project funds manager',     focus:'Organised and allocated project funds ' },
+    { photo:"{% static 'd.png' %}",   initials:'IM', name:'Emmanuel ',   role:'Project Sponsor',  focus:'Funded the project ' },
+  ];
+
+  const deck = document.getElementById('devDeck');
+  const nav = document.getElementById('deckNav');
+  let active = 0;
+
+  developers.forEach((dev, i) => {
+    const card = document.createElement('div');
+    card.className = 'dev-card';
+    const photoHtml = dev.photo
+      ? `<img class="photo-img" src="${dev.photo}" alt="${dev.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+         <div class="photo" style="display:none;">${dev.initials}</div>`
+      : `<div class="photo">${dev.initials}</div>`;
+    card.innerHTML = `
+      ${photoHtml}
+      <div class="scrim">
+        <p class="role">${dev.role}</p>
+        <p class="name">${dev.name}</p>
+        <p class="focus">${dev.focus}</p>
+      </div>`;
+    deck.appendChild(card);
+
+    const dot = document.createElement('button');
+    dot.addEventListener('click', () => { active = i; render(); });
+    nav.appendChild(dot);
+  });
+
+  const cards = deck.querySelectorAll('.dev-card');
+  const dots = nav.querySelectorAll('button');
+  const hues = ['#c9742e', '#3f8f7a', '#b65b8f', '#5b8fc9', '#c9a93f'];
+
+  function render(){
+    cards.forEach((card, i) => {
+      const offset = (i - active + cards.length) % cards.length;
+      const photo = card.querySelector('.photo');
+      photo.style.background = `radial-gradient(circle at 30% 25%, ${hues[i % hues.length]}cc, #11141a 75%)`;
+
+      if (offset === 0){
+        card.style.transform = 'translate(0px, 0px) rotate(0deg) scale(1)';
+        card.style.zIndex = 5;
+        card.style.opacity = '1';
+        card.style.filter = 'none';
+      } else if (offset === 1){
+        card.style.transform = 'translate(34px, 26px) rotate(6deg) scale(0.94)';
+        card.style.zIndex = 4;
+        card.style.opacity = '0.85';
+        card.style.filter = 'brightness(0.75)';
+      } else if (offset === 2){
+        card.style.transform = 'translate(60px, 50px) rotate(11deg) scale(0.88)';
+        card.style.zIndex = 3;
+        card.style.opacity = '0.55';
+        card.style.filter = 'brightness(0.55)';
+      } else if (offset === cards.length - 1){
+        card.style.transform = 'translate(-34px, 26px) rotate(-6deg) scale(0.94)';
+        card.style.zIndex = 4;
+        card.style.opacity = '0.85';
+        card.style.filter = 'brightness(0.75)';
+      } else {
+        card.style.transform = 'translate(0px, 80px) rotate(0deg) scale(0.8)';
+        card.style.zIndex = 1;
+        card.style.opacity = '0';
+        card.style.filter = 'brightness(0.4)';
+      }
+    });
+    dots.forEach((d, i) => d.classList.toggle('is-active', i === active));
+  }
+
+  render();
+  setInterval(() => { active = (active + 1) % cards.length; render(); }, 3200);
+</script>
+
+</body>
+</html>

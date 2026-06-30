@@ -118,3 +118,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'dashboard/static',  # for static files during development
+]
+
+ # where collectstatic gathers everything for production

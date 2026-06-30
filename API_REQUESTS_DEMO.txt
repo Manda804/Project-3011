@@ -1,0 +1,71 @@
+API Request Demonstration
+=========================
+
+Base URL: http://localhost:8000/api/
+
+1. Register Device (POST)
+-------------------------
+Endpoint: POST /api/devices/register/
+Example:
+  curl -X POST http://localhost:8000/api/devices/register/ \
+    -H "Content-Type: application/json" \
+    -d '{"device_id": "device123", "device_name": "Truck 1"}'
+
+
+waz for the app 
+2. Get Device Detail (GET)
+--------------------------
+Endpoint: GET /api/devices/<device_id>/
+Example:
+  curl http://localhost:8000/api/devices/device123/
+
+
+
+3. Get Latest Telemetry (GET)
+-----------------------------
+Endpoint: GET /api/devices/<device_id>/latest/
+Example:
+  curl http://localhost:8000/api/devices/device123/latest/
+
+telemetry  = logs incase u guys are wondering 
+4. Get Device Telemetry History (GET)
+-------------------------------------
+Endpoint: GET /api/devices/<device_id>/history/
+Example:
+  curl http://localhost:8000/api/devices/device123/history/
+
+5. Upload Telemetry (POST)
+---------------------------
+Endpoint: POST /api/telemetry/upload/
+Example:
+  curl -X POST http://localhost:8000/api/telemetry/upload/ \
+    -H "Content-Type: application/json" \
+    -d '{
+      "device_id": "device123",
+      "road": 1,
+      "speed": 45.5,
+      "latitude": 40.7128,
+      "longitude": -74.0060
+    }'
+
+6. Check Map Update (POST)
+---------------------------
+Endpoint: POST /api/maps/check-update/
+Example:
+  curl -X POST http://localhost:8000/api/maps/check-update/ \
+    -H "Content-Type: application/json" \
+    -d '{"device_id": "device123", "current_version": "1.0.0"}'
+
+
+the esp32 will continously use this to 
+7. Download Map Version (GET)
+------------------------------
+Endpoint: GET /api/maps/download/<version>/
+Example:
+  curl http://localhost:8000/api/maps/download/1.0.1/
+
+Notes
+-----
+- Use POST for endpoints that create or process data: /devices/register/, /telemetry/upload/, /maps/check-update/.
+- Use GET for endpoints that retrieve data: /devices/<device_id>/, /devices/<device_id>/latest/, /devices/<device_id>/history/, /maps/download/<version>/.
+- Replace placeholders like <device_id> and <version> with actual values.
