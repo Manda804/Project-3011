@@ -2,187 +2,394 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Kitwe Map Editor — CBU Smart Road Speed Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html,body,#map { height: 100%; width: 100%; margin:0; }
-    body { overscroll-behavior: none; }
-    /* Fixed fullscreen layout */
-    .app { position:fixed; inset:0; display:flex; }
-    /* Left drawer */
-    .drawer { width: 360px; max-width: 85vw; z-index: 900; backdrop-filter: blur(12px); background: rgba(10,12,20,0.6); border-right: 1px solid rgba(148,163,184,0.08); position: fixed; left: 0; top: 0; bottom: 0; overflow-y: auto; transition: transform 0.36s cubic-bezier(.2,.9,.35,1); }
-    .drawer.closed { transform: translateX(-100%); }
-    .drawer.open { transform: translateX(0); }
-    /* Glass card for controls */
-    .glass { background: rgba(18,24,33,0.7); border:1px solid rgba(148,163,184,0.06); backdrop-filter: blur(10px); }
-    /* Floating controls top-left small toggles */
-    .controls { position:absolute; left:16px; top:16px; z-index:850; display:flex; gap:8px; }
-    .mode-btn { background: rgba(2,6,23,0.6); border:1px solid rgba(99,102,241,0.12); padding:8px 12px; border-radius:999px; color:#dbeafe; cursor:pointer; }
-    .mode-btn.active { box-shadow: 0 0 12px rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.45); }
-    /* Road highlight */
-    .road-default { color: #60a5fa; weight:4; opacity:0.9; }
-    .road-dim { opacity:0.15; }
-    .road-selected { color: #34d399; weight:6; opacity:1; stroke-dasharray:0; }
-    /* Hazard styles */
-    .hazard-marker { background: rgba(219,39,119,0.95); border-radius:999px; width:18px; height:18px; display:block; }
-    .hazard-circle { color: rgba(249,115,22,0.18); }
+    :root{
+      --bg-void:#05070d;
+      --panel:#0c1220;
+      --panel-2:#131b2c;
+      --line: rgba(148,163,184,0.10);
+      --accent:#3b82f6;
+      --accent-2:#22d3ee;
+      --success:#34d399;
+      --warning:#f59e0b;
+      --danger:#f43f5e;
+      --text-hi:#e8edf7;
+      --text-lo:#8b95ab;
+    }
+    html,body,#map { height:100%; width:100%; margin:0; background:var(--bg-void); }
+    body { overscroll-behavior:none; font-family:'Inter',ui-sans-serif,system-ui,sans-serif; color:var(--text-hi); }
+    h1,h2,h3,h4,.display-font{ font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-0.01em; }
+    .mono{ font-family:'JetBrains Mono',ui-monospace,monospace; }
+    .app{ position:fixed; inset:0; display:flex; }
+    .leaflet-container{ background:var(--bg-void); font-family:'Inter',sans-serif; }
+
+    /* Drawer */
+    .drawer{
+      width:378px; max-width:88vw; z-index:900; position:fixed; left:0; top:0; bottom:0;
+      background:linear-gradient(180deg, rgba(12,18,32,0.92), rgba(9,13,23,0.94));
+      backdrop-filter:blur(16px); border-right:1px solid var(--line);
+      overflow-y:auto; transition:transform .38s cubic-bezier(.2,.9,.35,1);
+    }
+    .drawer.closed{ transform:translateX(-104%); }
+    .drawer.open{ transform:translateX(0); }
+    .drawer::-webkit-scrollbar{ width:6px; }
+    .drawer::-webkit-scrollbar-thumb{ background:rgba(148,163,184,0.18); border-radius:99px; }
+
+    .card{ background:var(--panel-2); border:1px solid var(--line); border-radius:16px; }
+    .field{
+      width:100%; padding:.6rem .75rem; background:rgba(2,6,23,0.5); border:1px solid rgba(148,163,184,0.14);
+      border-radius:12px; color:var(--text-hi); font-size:.875rem; outline:none; transition:border-color .15s;
+    }
+    .field:focus{ border-color:var(--accent); }
+    .label{ font-size:.7rem; color:var(--text-lo); text-transform:uppercase; letter-spacing:.08em; }
+
+    /* Segmented mode control */
+    .seg{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .seg-btn{
+      display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 4px;
+      background:rgba(2,6,23,0.4); border:1px solid var(--line); border-radius:12px; color:var(--text-lo);
+      cursor:pointer; font-size:.68rem; font-weight:500; transition:all .15s;
+    }
+    .seg-btn:hover{ color:var(--text-hi); border-color:rgba(148,163,184,0.22); }
+    .seg-btn.active{ color:#dbeafe; border-color:rgba(59,130,246,0.5); background:rgba(59,130,246,0.12); box-shadow:0 0 0 1px rgba(59,130,246,0.15) inset; }
+    .seg-btn svg{ width:18px; height:18px; }
+
+    .btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:.6rem 1rem; border-radius:12px; font-size:.85rem; font-weight:600; cursor:pointer; transition:filter .15s, transform .1s; border:1px solid transparent; }
+    .btn:active{ transform:scale(.98); }
+    .btn:disabled{ opacity:.35; cursor:not-allowed; }
+    .btn-primary{ background:var(--accent); color:white; }
+    .btn-primary:hover:not(:disabled){ filter:brightness(1.1); }
+    .btn-success{ background:var(--success); color:#04140d; }
+    .btn-success:hover:not(:disabled){ filter:brightness(1.08); }
+    .btn-danger{ background:var(--danger); color:white; }
+    .btn-danger:hover:not(:disabled){ filter:brightness(1.1); }
+    .btn-ghost{ background:transparent; border-color:rgba(148,163,184,0.2); color:var(--text-hi); }
+    .btn-ghost:hover:not(:disabled){ background:rgba(148,163,184,0.08); }
+
+    /* Telemetry HUD - signature element */
+    .hud{
+      position:absolute; top:16px; right:16px; z-index:820; background:rgba(5,7,13,0.72); backdrop-filter:blur(10px);
+      border:1px solid var(--line); border-radius:14px; padding:10px 14px; min-width:190px;
+    }
+    .hud-row{ display:flex; justify-content:space-between; gap:14px; font-size:.72rem; padding:2px 0; }
+    .hud-row .k{ color:var(--text-lo); }
+    .hud-row .v{ color:var(--accent-2); }
+
+    /* Legend */
+    .legend{ position:absolute; left:16px; bottom:16px; z-index:820; background:rgba(5,7,13,0.72); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:14px; padding:10px 14px; font-size:.72rem; color:var(--text-lo); display:flex; gap:14px; flex-wrap:wrap; }
+    .legend .dot{ width:8px; height:8px; border-radius:99px; display:inline-block; margin-right:6px; }
+
+    /* Node row editor */
+    .node-row{ display:flex; align-items:center; gap:6px; background:rgba(2,6,23,0.4); border:1px solid var(--line); border-radius:10px; padding:6px 8px; }
+    .node-row input{ background:transparent; border:none; outline:none; color:var(--text-hi); font-size:.75rem; width:0; flex:1; }
+    .node-idx{ font-size:.65rem; color:var(--text-lo); width:16px; text-align:center; flex-shrink:0; }
+
+    /* Toast */
+    #toastWrap{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
+    .toast{ background:rgba(12,18,32,0.96); border:1px solid var(--line); color:var(--text-hi); padding:.65rem 1.1rem; border-radius:12px; font-size:.82rem; box-shadow:0 8px 24px rgba(0,0,0,0.4); opacity:0; transform:translateY(8px); transition:all .25s; }
+    .toast.show{ opacity:1; transform:translateY(0); }
+    .toast.err{ border-color:rgba(244,63,94,0.4); }
+
+    /* Modal */
+    .modal-scrim{ position:fixed; inset:0; z-index:1100; background:rgba(2,6,23,0.6); backdrop-filter:blur(2px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity .2s; padding:16px; }
+    .modal-scrim.show{ opacity:1; pointer-events:auto; }
+    .modal{ width:min(360px,92vw); background:var(--panel-2); border:1px solid var(--line); border-radius:16px; padding:20px; transform:translateY(8px); transition:transform .2s; }
+    .modal-scrim.show .modal{ transform:translateY(0); }
+
+    /* Menu button */
+    #menuButton{ position:fixed; left:16px; top:16px; z-index:950; }
+
+    /* Mobile: drawer becomes bottom sheet */
+    @media (max-width:640px){
+      .drawer{
+        left:0; right:0; top:auto; bottom:0; width:100%; max-width:100%; height:auto; max-height:78vh;
+        border-right:none; border-top:1px solid var(--line); border-radius:20px 20px 0 0;
+        transform:translateY(100%);
+      }
+      .drawer.open{ transform:translateY(0); }
+      .drawer.closed{ transform:translateY(100%); }
+      .drag-handle{ display:block; }
+      .hud{ top:auto; bottom:16px; right:16px; }
+      .legend{ display:none; }
+    }
+    .drag-handle{ display:none; width:40px; height:4px; border-radius:99px; background:rgba(148,163,184,0.3); margin:10px auto 0; }
   </style>
 </head>
 <body>
   <div class="app">
-    <!-- Hamburger menu button (top left) -->
-    <button id="menuButton" class="fixed left-4 top-4 z-950 p-3 rounded-lg bg-slate-900/80 border border-slate-700 text-white hover:bg-slate-800 transition">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
+    <button id="menuButton" class="rounded-xl bg-slate-900/85 border border-slate-700 text-white p-3 hover:bg-slate-800 transition">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line>
       </svg>
     </button>
 
-    <div id="drawer" class="drawer open p-5 glass">
-      <div class="flex items-center justify-between">
-        <div>
-          <h3 class="text-white text-lg font-semibold">Map Tools</h3>
-          <p class="text-xs text-slate-300 mt-1">Kitwe (editing locked)</p>
-        </div>
-        <button id="toggleDrawer" class="text-slate-300 hover:text-white text-sm">✕</button>
-      </div>
-
-      <div class="mt-6">
-        <div class="flex gap-2 flex-wrap">
-          <button class="mode-btn active" data-mode="view">View</button>
-          <button class="mode-btn" data-mode="road_edit">Road Edit</button>
-          <button class="mode-btn" data-mode="road_info">Road Info</button>
-          <button class="mode-btn" data-mode="hazard">Hazard</button>
+    <div id="drawer" class="drawer open">
+      <div class="drag-handle"></div>
+      <div class="p-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-white text-lg font-semibold display-font">Map Tools</h3>
+            <p class="label mt-1">Kitwe · road network</p>
+          </div>
+          <button id="toggleDrawer" class="text-slate-400 hover:text-white text-sm p-1">✕</button>
         </div>
 
-        <div id="modePanels" class="mt-6 space-y-4 text-slate-200">
+        <div class="mt-5 seg">
+          <button class="seg-btn active" data-mode="view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            View
+          </button>
+          <button class="seg-btn" data-mode="road_edit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+            Draw
+          </button>
+          <button class="seg-btn" data-mode="road_info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            Info
+          </button>
+          <button class="seg-btn" data-mode="hazard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            Hazard
+          </button>
+        </div>
+
+        <div id="modePanels" class="mt-5 space-y-4">
           <!-- View Panel -->
-          <div data-panel="view">
-            <p class="text-sm">Default map view. Click a road to open Road Information.</p>
-            <div class="mt-3">
-              <button id="refreshBtn" class="px-3 py-2 rounded bg-sky-500 text-white">Reload roads</button>
+          <div data-panel="view" class="space-y-3">
+            <div class="card p-4">
+              <p class="text-sm text-slate-300">Default map view. Click any road to inspect it, or switch tabs to draw and edit.</p>
             </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="card p-3 text-center">
+                <div class="mono text-xl text-white" id="statRoads">0</div>
+                <div class="label mt-1">Roads</div>
+              </div>
+              <div class="card p-3 text-center">
+                <div class="mono text-xl text-white" id="statHazards">0</div>
+                <div class="label mt-1">Hazards</div>
+              </div>
+            </div>
+            <button id="refreshBtn" class="btn btn-ghost w-full">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Reload roads
+            </button>
           </div>
 
           <!-- Road Edit Panel -->
-          <div data-panel="road_edit" style="display:none;">
-            <p class="text-sm">Create roads by clicking points on the map. Right-click to finish.</p>
-            <div class="mt-3 space-y-2">
-              <button id="startCreate" class="px-3 py-2 rounded bg-emerald-500 text-black">Create Road</button>
-              <button id="cancelCreate" class="px-3 py-2 rounded bg-gray-700 text-white" disabled>Cancel</button>
-              <button id="saveDraft" class="px-3 py-2 rounded bg-sky-500 text-white" disabled>Save Draft</button>
+          <div data-panel="road_edit" style="display:none;" class="space-y-3">
+            <div class="card p-4">
+              <p class="text-sm text-slate-300">Create a road by clicking points on the map. Right-click (or long-press on mobile) to finish the path.</p>
+              <div id="drawStatus" class="mt-2 label"></div>
             </div>
-            <div class="mt-4 glass p-3 rounded">
-              <label class="text-xs text-slate-300">Road name</label>
-              <input id="roadName" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" placeholder="Main Street" />
-              <label class="text-xs mt-3 text-slate-300">Speed limit (km/h)</label>
-              <input id="roadSpeed" type="number" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" placeholder="50" />
+            <div class="flex gap-2">
+              <button id="startCreate" class="btn btn-success flex-1">Start drawing</button>
+              <button id="cancelCreate" class="btn btn-ghost" disabled>Cancel</button>
+            </div>
+            <button id="saveDraft" class="btn btn-primary w-full" disabled>Save draft</button>
+            <div class="card p-4 space-y-3">
+              <div>
+                <label class="label">Road name</label>
+                <input id="roadName" class="field mt-1.5" placeholder="Main Street" />
+              </div>
+              <div>
+                <label class="label">Speed limit (km/h)</label>
+                <input id="roadSpeed" type="number" class="field mt-1.5 mono" placeholder="50" />
+              </div>
             </div>
           </div>
 
           <!-- Road Info Panel -->
-          <div data-panel="road_info" style="display:none;">
-            <h4 id="infoName" class="text-white font-semibold">Road name</h4>
-            <div class="mt-2 text-sm text-slate-300">Speed limit: <span id="infoSpeed">-</span> km/h</div>
-            <div class="mt-3 text-sm text-slate-300">Nodes (lat,lng):</div>
-            <pre id="infoNodes" class="mt-2 text-xs text-slate-200 bg-transparent p-2 rounded" style="max-height:160px;overflow:auto"></pre>
-            <div class="mt-3 flex gap-2">
-              <button id="editRoadBtn" class="px-3 py-2 rounded bg-amber-500 text-black">Edit</button>
-              <button id="deleteRoadBtn" class="px-3 py-2 rounded bg-red-600 text-white">Delete</button>
-              <button id="saveInfoBtn" class="px-3 py-2 rounded bg-sky-500 text-white">Save changes</button>
+          <div data-panel="road_info" style="display:none;" class="space-y-3">
+            <div class="card p-4 space-y-3">
+              <div>
+                <label class="label">Name</label>
+                <input id="infoName" class="field mt-1.5" />
+              </div>
+              <div>
+                <label class="label">Speed limit (km/h)</label>
+                <input id="infoSpeed" type="number" class="field mt-1.5 mono" />
+              </div>
+            </div>
+            <div class="card p-4">
+              <div class="flex items-center justify-between">
+                <label class="label">Nodes (lat, lng)</label>
+                <button id="addNodeToggle" class="text-xs text-sky-400 hover:text-sky-300 font-medium">+ Add point</button>
+              </div>
+              <div id="infoNodes" class="mt-2 space-y-1.5 max-h-40 overflow-y-auto"></div>
+              <p class="label mt-2">Tip: drag a node marker on the map to move it. Click a marker to delete it.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="deleteRoadBtn" class="btn btn-danger">Delete road</button>
+              <button id="saveInfoBtn" class="btn btn-success">Save changes</button>
             </div>
           </div>
 
           <!-- Hazard Panel -->
-          <div data-panel="hazard" style="display:none;">
-            <p class="text-sm">Click on the map to place a hazard. Choose type and radius below.</p>
-            <div class="mt-3">
-              <select id="hazardType" class="w-full p-2 bg-transparent border border-slate-700 rounded text-white">
-                <option value="school">School Zone</option>
-                <option value="bump">Speed Bump</option>
-                <option value="curve">Sharp Curve</option>
-                <option value="construction">Construction Zone</option>
-              </select>
-              <label class="text-xs text-slate-300 mt-3">Warning radius (m)</label>
-              <input id="hazardRadius" type="number" value="50" class="w-full mt-2 p-2 bg-transparent border border-slate-700 rounded text-white" />
+          <div data-panel="hazard" style="display:none;" class="space-y-3">
+            <div class="card p-4">
+              <p class="text-sm text-slate-300">Click on the map to place a hazard marker at that location.</p>
             </div>
-            <div class="mt-3">
-              <button id="clearHazards" class="px-3 py-2 rounded bg-gray-700 text-white">Clear placed hazards (local)</button>
+            <div class="card p-4 space-y-3">
+              <div>
+                <label class="label">Hazard type</label>
+                <select id="hazardType" class="field mt-1.5">
+                  <option value="school">School zone</option>
+                  <option value="bump">Speed bump</option>
+                  <option value="curve">Sharp curve</option>
+                  <option value="construction">Construction zone</option>
+                </select>
+              </div>
+              <div>
+                <label class="label">Warning radius (m)</label>
+                <input id="hazardRadius" type="number" value="50" class="field mt-1.5 mono" />
+              </div>
             </div>
+            <button id="clearHazards" class="btn btn-ghost w-full">Clear placed hazards (local)</button>
           </div>
         </div>
       </div>
-
-      <div class="mt-6 text-xs text-slate-400">Tip: while creating a road, right-click to finish and open the info panel to save to backend.</div>
     </div>
 
     <div id="mapContainer" class="fixed inset-0 w-full h-full">
       <div id="map"></div>
+      <div class="hud">
+        <div class="hud-row"><span class="k">Lat, Lng</span><span class="v mono" id="hudLatLng">—, —</span></div>
+        <div class="hud-row"><span class="k">Zoom</span><span class="v mono" id="hudZoom">—</span></div>
+        <div class="hud-row"><span class="k">Mode</span><span class="v" id="hudMode">View</span></div>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#60a5fa"></span>Road</span>
+        <span><span class="dot" style="background:#34d399"></span>Selected</span>
+        <span><span class="dot" style="background:#fb923c"></span>Hazard</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastWrap"></div>
+
+  <div id="confirmScrim" class="modal-scrim">
+    <div class="modal">
+      <h4 class="display-font text-white font-semibold" id="confirmTitle">Confirm action</h4>
+      <p class="text-sm text-slate-400 mt-2" id="confirmBody">Are you sure?</p>
+      <div class="flex gap-2 mt-5">
+        <button id="confirmCancel" class="btn btn-ghost flex-1">Cancel</button>
+        <button id="confirmOk" class="btn btn-danger flex-1">Confirm</button>
+      </div>
     </div>
   </div>
 
   <script>
-    // Kitwe bounds and center
-    const KITWE_CENTER = [-12.8075, 28.2132];
-    const KITWE_BOUNDS = [[-13.05, 27.85], [-12.55, 28.55]]; // SW, NE
+    // ---------- utility: toast + confirm modal (replace alert/confirm/prompt) ----------
+    function showToast(msg, isErr){
+      const wrap = document.getElementById('toastWrap');
+      const el = document.createElement('div');
+      el.className = 'toast' + (isErr ? ' err' : '');
+      el.textContent = msg;
+      wrap.appendChild(el);
+      requestAnimationFrame(()=> el.classList.add('show'));
+      setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(), 250); }, 2800);
+    }
+    function askConfirm(title, body){
+      return new Promise((resolve)=>{
+        const scrim = document.getElementById('confirmScrim');
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmBody').textContent = body;
+        scrim.classList.add('show');
+        function cleanup(result){
+          scrim.classList.remove('show');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          resolve(result);
+        }
+        const okBtn = document.getElementById('confirmOk');
+        const cancelBtn = document.getElementById('confirmCancel');
+        function onOk(){ cleanup(true); }
+        function onCancel(){ cleanup(false); }
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+      });
+    }
+    function getCookie(name){
+      const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+      return m ? m.pop() : '';
+    }
+    async function apiFetch(url, options){
+      options = options || {};
+      const csrf = getCookie('csrftoken');
+      options.headers = Object.assign({'Content-Type':'application/json'}, csrf ? {'X-CSRFToken':csrf} : {}, options.headers||{});
+      const res = await fetch(url, options);
+      if(!res.ok) throw new Error('Request failed: '+res.status);
+      return res.status === 204 ? null : res.json().catch(()=>null);
+    }
 
-    // App state
+    // ---------- Kitwe bounds and center ----------
+    const KITWE_CENTER = [-12.8075, 28.2132];
+    const KITWE_BOUNDS = [[-13.05, 27.85], [-12.55, 28.55]];
+
     let mode = 'view';
-    let map, roadsLayer, hazardsLayer, drawnTemp;
+    let map, roadsLayer, hazardsLayer, nodesLayer, drawnTemp;
     let creating = false;
+    let addingNode = false;
     let currentDraft = {name:'', speed:0, nodes:[]};
     let roads = [];
+    let hazardsList = [];
     let selectedRoad = null;
 
     function initMap(){
       map = L.map('map', {
-        center: KITWE_CENTER,
-        zoom: 13,
-        minZoom: 12,
-        maxZoom: 18,
-        zoomControl: true,
-        maxBounds: KITWE_BOUNDS,
-        maxBoundsViscosity: 1.0,
-        crs: L.CRS.EPSG3857
+        center: KITWE_CENTER, zoom: 13, minZoom: 12, maxZoom: 18,
+        zoomControl: true, maxBounds: KITWE_BOUNDS, maxBoundsViscosity: 1.0
       });
+      L.control.zoom({ position:'bottomright' }).addTo(map);
 
-      // dark tiles (Carto Dark Matter)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(map);
+      const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors, &copy; CARTO', maxZoom: 19
+      });
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri', maxZoom: 19
+      });
+      streetLayer.addTo(map);
+      L.control.layers({ 'Street (dark)': streetLayer, 'Satellite': satelliteLayer }, {}, { position:'topright' }).addTo(map);
 
       roadsLayer = L.layerGroup().addTo(map);
       hazardsLayer = L.layerGroup().addTo(map);
+      nodesLayer = L.layerGroup().addTo(map);
 
       map.on('click', onMapClick);
       map.on('contextmenu', onMapRightClick);
+      map.on('mousemove', (e)=>{
+        document.getElementById('hudLatLng').textContent = e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);
+      });
+      map.on('zoomend', ()=> document.getElementById('hudZoom').textContent = map.getZoom());
+      document.getElementById('hudZoom').textContent = map.getZoom();
 
       loadRoads();
       loadHazards();
     }
 
-    // Mode switching UI
-    document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', (e)=>{
-      document.querySelectorAll('.mode-btn').forEach(x=>x.classList.remove('active'));
-      e.target.classList.add('active');
-      setMode(e.target.dataset.mode);
+    // ---------- mode switching ----------
+    document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', (e)=>{
+      const btn = e.currentTarget;
+      document.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      setMode(btn.dataset.mode);
     }));
 
     document.getElementById('toggleDrawer').addEventListener('click', ()=>{
       const d = document.getElementById('drawer');
-      d.classList.toggle('closed');
-      d.classList.toggle('open');
+      d.classList.toggle('closed'); d.classList.toggle('open');
     });
-
     document.getElementById('menuButton').addEventListener('click', ()=>{
       const d = document.getElementById('drawer');
-      d.classList.remove('closed');
-      d.classList.add('open');
+      d.classList.remove('closed'); d.classList.add('open');
     });
 
     function setMode(m){
@@ -190,230 +397,276 @@
       document.querySelectorAll('[data-panel]').forEach(p=>p.style.display='none');
       const panel = document.querySelector('[data-panel="'+m+'"]');
       if(panel) panel.style.display = 'block';
-      // visuals
-      if(mode === 'road_edit'){
-        map.getContainer().style.cursor = 'crosshair';
-      } else { map.getContainer().style.cursor = ''; }
+      map.getContainer().style.cursor = (mode === 'road_edit' || mode === 'hazard') ? 'crosshair' : '';
+      const labels = { view:'View', road_edit:'Draw', road_info:'Info', hazard:'Hazard' };
+      document.getElementById('hudMode').textContent = labels[m] || m;
       updateRoadStyles();
     }
 
-    // load roads from backend (expects JSON array with id,name,speed_limit,nodes:[{latitude,longitude},...])
+    // ---------- roads ----------
     async function loadRoads(){
-      roadsLayer.clearLayers(); roads = [];
+      roadsLayer.clearLayers(); nodesLayer.clearLayers(); roads = [];
       try{
-        const res = await fetch('/api/roads/');
-        if(!res.ok) throw new Error('no api');
-        const data = await res.json();
-        const roadsList = data.roads || data;
+        const data = await apiFetch('/api/roads/');
+        const roadsList = data.roads || data || [];
         roadsList.forEach(r => {
-          // Convert API format (nodes with latitude/longitude) to frontend format (array [lat,lng])
           const convertedNodes = r.nodes.map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
-          const converted = {...r, speed: r.speed_limit, nodes: convertedNodes};
-          addRoadToMap(converted, false);
+          addRoadToMap({...r, speed: r.speed_limit, nodes: convertedNodes, rawNodes: r.nodes}, false);
         });
       }catch(err){
-        console.warn('Could not load roads from API, using local sample');
-        // sample road fallback (small line in Kitwe)
-        const sample = {id:'local-1', name:'Sample Road A', speed:50, nodes:[[-12.805,28.21],[-12.802,28.215],[-12.8,28.22]]};
-        addRoadToMap(sample, false);
+        console.warn('Could not load roads from API, using local sample', err);
+        addRoadToMap({id:'local-1', name:'Sample Road A', speed:50, nodes:[[-12.805,28.21],[-12.802,28.215],[-12.8,28.22]]}, false);
       }
+      document.getElementById('statRoads').textContent = roads.length;
     }
 
-    function addRoadToMap(road, zoomTo=false){
+    function addRoadToMap(road, zoomTo){
       const latlngs = road.nodes.map(n=>[n[0],n[1]]);
-      const poly = L.polyline(latlngs, {color:'#60a5fa', weight:4, opacity:0.95}).addTo(roadsLayer);
-      poly.roadId = road.id;
-      poly.roadData = road;
+      const poly = L.polyline(latlngs, {color:'#60a5fa', weight:4, opacity:0.9}).addTo(roadsLayer);
+      poly.roadId = road.id; poly.roadData = road;
+      poly.bindTooltip(road.name, {sticky:true});
       poly.on('click', ()=>onRoadClick(poly));
       roads.push(poly);
       if(zoomTo) map.fitBounds(poly.getBounds(), {padding:[40,40]});
     }
 
     function updateRoadStyles(){
-      roads.forEach(r => {
-        if(selectedRoad && r !== selectedRoad){
-          r.setStyle({opacity:0.12});
-        } else if(r === selectedRoad){
-          r.setStyle({color:'#34d399', weight:6, opacity:1});
-        } else {
-          r.setStyle({color:'#60a5fa', weight:4, opacity:0.95});
-        }
+      roads.forEach(r=>{
+        if(selectedRoad && r !== selectedRoad) r.setStyle({opacity:0.15});
+        else if(r === selectedRoad) r.setStyle({color:'#34d399', weight:6, opacity:1});
+        else r.setStyle({color:'#60a5fa', weight:4, opacity:0.9});
       });
     }
 
     function onRoadClick(poly){
       selectedRoad = poly;
+      document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='road_info'));
       setMode('road_info');
       populateRoadInfo(poly.roadData);
       updateRoadStyles();
-      // zoom to road
       map.fitBounds(poly.getBounds(), {padding:[80,80]});
+      drawEditableNodes(poly);
     }
 
-    function populateRoadInfo(data){
-      document.getElementById('infoName').innerText = data.name || 'Unnamed road';
-      document.getElementById('infoSpeed').innerText = (data.speed || data.speed_limit || 0);
-      document.getElementById('infoNodes').innerText = JSON.stringify(data.nodes, null, 2);
+    // ---------- editable node markers ----------
+    function drawEditableNodes(poly){
+      nodesLayer.clearLayers();
+      const road = poly.roadData;
+      road.nodes.forEach((node, idx)=>{
+        const marker = L.marker(node, {
+          draggable:true,
+          icon: L.divIcon({ className:'', html:'<div style="width:14px;height:14px;border-radius:999px;background:#34d399;border:2px solid #f8fafc;box-shadow:0 0 0 2px rgba(52,211,153,0.25)"></div>', iconSize:[14,14], iconAnchor:[7,7] })
+        }).addTo(nodesLayer);
+        marker.bindTooltip('Node '+(idx+1)+' — drag to move, click to delete', {direction:'top'});
+        marker.on('dragend', (e)=>{
+          const pos = e.target.getLatLng();
+          road.nodes[idx] = [pos.lat, pos.lng];
+          poly.setLatLngs(road.nodes);
+          renderNodeList(road);
+        });
+        marker.on('click', async ()=>{
+          if(road.nodes.length <= 2){ showToast('A road needs at least two points', true); return; }
+          const ok = await askConfirm('Delete node?', 'This removes point '+(idx+1)+' from the road.');
+          if(!ok) return;
+          road.nodes.splice(idx,1);
+          poly.setLatLngs(road.nodes);
+          drawEditableNodes(poly);
+          renderNodeList(road);
+        });
+      });
     }
 
-    // Hazard loading
+    // ---------- hazards ----------
     async function loadHazards(){
-      hazardsLayer.clearLayers();
+      hazardsLayer.clearLayers(); hazardsList = [];
       try{
-        const res = await fetch('/api/hazards/');
-        if(!res.ok) throw new Error('no api hazards');
-        const data = await res.json();
-        const hazardsList = data.hazards || data;
-        hazardsList.forEach(h => addHazardToMap(h));
+        const data = await apiFetch('/api/hazards/');
+        const list = data.hazards || data || [];
+        list.forEach(h => addHazardToMap(h));
       }catch(err){ console.warn('No hazards API, skipping.'); }
+      document.getElementById('statHazards').textContent = hazardsList.length;
     }
-
     function addHazardToMap(h){
       const lat = typeof h.latitude === 'number' ? h.latitude : parseFloat(h.latitude);
       const lng = typeof h.longitude === 'number' ? h.longitude : parseFloat(h.longitude);
       const radius = h.warning_distance || h.radius || 50;
-      const marker = L.circle([lat, lng], {radius:radius, color:'#fb923c', fillOpacity:0.15}).addTo(hazardsLayer);
+      const marker = L.circle([lat,lng], {radius, color:'#fb923c', fillOpacity:0.15}).addTo(hazardsLayer);
+      marker.bindTooltip(h.hazard_type || 'Hazard');
       marker.hazardData = h;
+      hazardsList.push(marker);
+      document.getElementById('statHazards').textContent = hazardsList.length;
     }
 
-    // Map click behaviors
+    // ---------- map interactions ----------
     function onMapClick(e){
       if(mode === 'road_edit' && creating){
         currentDraft.nodes.push([e.latlng.lat, e.latlng.lng]);
         if(drawnTemp) drawnTemp.addLatLng(e.latlng);
         else drawnTemp = L.polyline([e.latlng], {color:'#f472b6', weight:3, dashArray:'6 4'}).addTo(map);
-        // enable cancel/save when there are nodes
         document.getElementById('cancelCreate').disabled = false;
         document.getElementById('saveDraft').disabled = currentDraft.nodes.length < 2;
+        document.getElementById('drawStatus').textContent = currentDraft.nodes.length + ' point(s) placed';
+      } else if(mode === 'road_info' && addingNode && selectedRoad){
+        selectedRoad.roadData.nodes.push([e.latlng.lat, e.latlng.lng]);
+        selectedRoad.setLatLngs(selectedRoad.roadData.nodes);
+        drawEditableNodes(selectedRoad);
+        renderNodeList(selectedRoad.roadData);
+        showToast('Point added — remember to save changes');
       } else if(mode === 'hazard'){
         const t = document.getElementById('hazardType').value;
         const r = Number(document.getElementById('hazardRadius').value) || 50;
-        const payload = {hazard_type: t, latitude: e.latlng.lat, longitude: e.latlng.lng, warning_distance: r, road: roads.length > 0 ? roads[0].roadId : null};
-        // add locally
-        const circle = L.circle([e.latlng.lat,e.latlng.lng], {radius:r, color:'#fb923c', fillOpacity:0.12}).addTo(hazardsLayer);
-        circle.hazardData = payload;
-        // POST to backend (only if we have a road)
+        const payload = {hazard_type:t, latitude:e.latlng.lat, longitude:e.latlng.lng, warning_distance:r, road: roads.length>0 ? roads[0].roadId : null};
+        addHazardToMap(payload);
         if(payload.road){
-          fetch('/api/hazards/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(res=>console.log('hazard saved',res)).catch(()=>console.warn('hazard save failed'));
+          apiFetch('/api/hazards/', {method:'POST', body:JSON.stringify(payload)})
+            .then(()=>showToast('Hazard saved'))
+            .catch(()=>showToast('Hazard save failed', true));
         } else {
-          console.warn('Hazard created locally but not saved to backend (no road selected)');
+          showToast('Hazard placed locally (no road to attach to yet)', true);
         }
       }
     }
-
     function onMapRightClick(e){
-      if(mode === 'road_edit' && creating){
-        finishRoadCreation();
-      }
+      if(mode === 'road_edit' && creating){ e.originalEvent && e.originalEvent.preventDefault(); finishRoadCreation(); }
     }
 
-    // Drawing controls
+    // ---------- draw road flow ----------
     document.getElementById('startCreate').addEventListener('click', ()=>{
-      creating = true; currentDraft = {name:'', speed:0, nodes:[]};
-      drawnTemp = null;
+      creating = true; currentDraft = {name:'', speed:0, nodes:[]}; drawnTemp = null;
       document.getElementById('cancelCreate').disabled = false;
       document.getElementById('saveDraft').disabled = true;
       document.getElementById('roadName').value = '';
       document.getElementById('roadSpeed').value = '';
-      alert('Road create: click map to add points. Right-click to finish.');
+      document.getElementById('drawStatus').textContent = 'Click the map to add points · right-click to finish';
+      showToast('Drawing started — click the map to add points');
     });
-
     document.getElementById('cancelCreate').addEventListener('click', ()=>{
       creating = false; currentDraft = {name:'', speed:0, nodes:[]};
       if(drawnTemp){ map.removeLayer(drawnTemp); drawnTemp = null; }
-      document.getElementById('cancelCreate').disabled = true; document.getElementById('saveDraft').disabled = true;
+      document.getElementById('cancelCreate').disabled = true;
+      document.getElementById('saveDraft').disabled = true;
+      document.getElementById('drawStatus').textContent = '';
     });
-
     document.getElementById('saveDraft').addEventListener('click', ()=>{
-      if(currentDraft.nodes.length < 2) return alert('Add at least two points');
+      if(currentDraft.nodes.length < 2) return showToast('Add at least two points', true);
       finishRoadCreation();
     });
 
     function finishRoadCreation(){
       creating = false;
-      // collect name/speed
       currentDraft.name = document.getElementById('roadName').value || 'Unnamed road';
       currentDraft.speed = Number(document.getElementById('roadSpeed').value) || 50;
-      if(currentDraft.nodes.length < 2) return alert('Need at least two points');
-      // render permanent polyline
-      const newRoad = {id: 'local-'+Date.now(), name: currentDraft.name, speed: currentDraft.speed, nodes: currentDraft.nodes};
+      if(currentDraft.nodes.length < 2) return showToast('Need at least two points', true);
+      const newRoad = {id:'local-'+Date.now(), name:currentDraft.name, speed:currentDraft.speed, nodes:currentDraft.nodes};
       addRoadToMap(newRoad, true);
       if(drawnTemp){ map.removeLayer(drawnTemp); drawnTemp = null; }
-      document.getElementById('cancelCreate').disabled = true; document.getElementById('saveDraft').disabled = true;
-      
-      // Convert to API format (nodes as objects with latitude/longitude)
-      const apiPayload = {
-        name: currentDraft.name,
-        speed_limit: currentDraft.speed,
-        nodes: currentDraft.nodes.map(n => ({latitude: n[0], longitude: n[1]}))
-      };
-      
-      // POST to backend
-      fetch('/api/roads/', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(apiPayload)})
-        .then(res=>{
-          if(!res.ok) throw new Error('save failed');
-          return res.json();
-        }).then(saved => {
-          console.log('Saved road', saved);
-          // replace local id with saved id
-          const lastRoad = roads[roads.length-1];
-          if(lastRoad) lastRoad.roadId = saved.id;
-        }).catch(err=>{
-          console.warn('Backend save failed', err);
-        });
-      // open info panel for the new road
-      // select the newly added road
-      const r = roads[roads.length-1]; selectedRoad = r; setMode('road_info'); populateRoadInfo(newRoad);
-      updateRoadStyles();
+      document.getElementById('cancelCreate').disabled = true;
+      document.getElementById('saveDraft').disabled = true;
+      document.getElementById('statRoads').textContent = roads.length;
+
+      const apiPayload = { name:currentDraft.name, speed_limit:currentDraft.speed, nodes:currentDraft.nodes.map(n=>({latitude:n[0], longitude:n[1]})) };
+      apiFetch('/api/roads/', {method:'POST', body:JSON.stringify(apiPayload)})
+        .then(saved=>{ const last = roads[roads.length-1]; if(last && saved) last.roadId = saved.id; showToast('Road saved to backend'); })
+        .catch(()=>showToast('Saved locally — backend save failed', true));
+
+      const r = roads[roads.length-1]; selectedRoad = r;
+      document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='road_info'));
+      setMode('road_info'); populateRoadInfo(newRoad); updateRoadStyles(); drawEditableNodes(r);
     }
 
-    // Info panel buttons
-    document.getElementById('deleteRoadBtn').addEventListener('click', ()=>{
-      if(!selectedRoad) return; if(!confirm('Delete this road?')) return;
-      // remove layer
-      roadsLayer.removeLayer(selectedRoad);
-      // call backend
-      fetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id),{method:'DELETE'}).catch(()=>console.warn('delete failed'));
-      selectedRoad = null; setMode('view'); updateRoadStyles();
+    // ---------- road info panel ----------
+    function populateRoadInfo(data){
+      document.getElementById('infoName').value = data.name || 'Unnamed road';
+      document.getElementById('infoSpeed').value = data.speed || data.speed_limit || 0;
+      renderNodeList(data);
+    }
+    function renderNodeList(data){
+      const wrap = document.getElementById('infoNodes');
+      wrap.innerHTML = '';
+      (data.nodes || []).forEach((n, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'node-row mono';
+        row.innerHTML = '<span class="node-idx">'+(idx+1)+'</span>'
+          + '<input type="number" step="0.00001" value="'+n[0].toFixed(5)+'" data-idx="'+idx+'" data-axis="lat" />'
+          + '<input type="number" step="0.00001" value="'+n[1].toFixed(5)+'" data-idx="'+idx+'" data-axis="lng" />'
+          + '<button data-remove="'+idx+'" style="color:#f43f5e;font-size:.8rem;padding:2px 6px;">✕</button>';
+        wrap.appendChild(row);
+      });
+      wrap.querySelectorAll('input').forEach(inp=>{
+        inp.addEventListener('change', ()=>{
+          const idx = Number(inp.dataset.idx), axis = inp.dataset.axis;
+          const node = selectedRoad.roadData.nodes[idx];
+          if(axis === 'lat') node[0] = Number(inp.value); else node[1] = Number(inp.value);
+          selectedRoad.setLatLngs(selectedRoad.roadData.nodes);
+          drawEditableNodes(selectedRoad);
+        });
+      });
+      wrap.querySelectorAll('[data-remove]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          const idx = Number(btn.dataset.remove);
+          if(selectedRoad.roadData.nodes.length <= 2){ showToast('A road needs at least two points', true); return; }
+          const ok = await askConfirm('Delete node?', 'This removes point '+(idx+1)+' from the road.');
+          if(!ok) return;
+          selectedRoad.roadData.nodes.splice(idx,1);
+          selectedRoad.setLatLngs(selectedRoad.roadData.nodes);
+          drawEditableNodes(selectedRoad);
+          renderNodeList(selectedRoad.roadData);
+        });
+      });
+    }
+
+    document.getElementById('addNodeToggle').addEventListener('click', (e)=>{
+      addingNode = !addingNode;
+      e.target.textContent = addingNode ? 'Click map to add…' : '+ Add point';
+      e.target.style.color = addingNode ? '#34d399' : '';
+      map.getContainer().style.cursor = addingNode ? 'crosshair' : '';
     });
 
-    document.getElementById('editRoadBtn').addEventListener('click', ()=>{
-      if(!selectedRoad) return; // allow editing via nodes list: open a prompt to add/remove
-      const nodes = selectedRoad.roadData.nodes.slice();
-      const newNodes = prompt('Edit nodes as JSON array of [lat,lng] pairs', JSON.stringify(nodes));
-      try{
-        const parsed = JSON.parse(newNodes);
-        selectedRoad.roadData.nodes = parsed;
-        selectedRoad.setLatLngs(parsed.map(n=>[n[0],n[1]]));
-        populateRoadInfo(selectedRoad.roadData);
-      }catch(err){ alert('Invalid JSON'); }
+    document.getElementById('deleteRoadBtn').addEventListener('click', async ()=>{
+      if(!selectedRoad) return;
+      const ok = await askConfirm('Delete this road?', (selectedRoad.roadData.name||'This road')+' will be removed from the map and backend.');
+      if(!ok) return;
+      roadsLayer.removeLayer(selectedRoad);
+      nodesLayer.clearLayers();
+      roads = roads.filter(r=>r!==selectedRoad);
+      document.getElementById('statRoads').textContent = roads.length;
+      apiFetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id), {method:'DELETE'})
+        .then(()=>showToast('Road deleted'))
+        .catch(()=>showToast('Removed locally — backend delete failed', true));
+      selectedRoad = null;
+      document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='view'));
+      setMode('view');
     });
 
     document.getElementById('saveInfoBtn').addEventListener('click', ()=>{
       if(!selectedRoad) return;
-      // read interface values
-      const s = Number(document.getElementById('infoSpeed').innerText) || selectedRoad.roadData.speed;
-      selectedRoad.roadData.speed = s;
-      // save to backend (convert to API format)
+      const name = document.getElementById('infoName').value || selectedRoad.roadData.name;
+      const speed = Number(document.getElementById('infoSpeed').value) || selectedRoad.roadData.speed;
+      selectedRoad.roadData.name = name; selectedRoad.roadData.speed = speed;
+      selectedRoad.setTooltipContent && selectedRoad.setTooltipContent(name);
       const apiPayload = {
-        name: selectedRoad.roadData.name,
-        speed_limit: s
+        name, speed_limit: speed,
+        nodes: selectedRoad.roadData.nodes.map(n=>({latitude:n[0], longitude:n[1]}))
       };
-      fetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(apiPayload)})
-        .then(r=>console.log('saved info',r)).catch(()=>console.warn('save info failed'));
-      alert('Saved (attempted).');
+      apiFetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id), {method:'PATCH', body:JSON.stringify(apiPayload)})
+        .then(()=>showToast('Road changes saved'))
+        .catch(()=>showToast('Save failed — check your API route', true));
     });
 
-    // refresh button
-    document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadRoads(); loadHazards(); });
+    // ---------- hazard panel ----------
+    document.getElementById('clearHazards').addEventListener('click', async ()=>{
+      const ok = await askConfirm('Clear local hazards?', 'This only clears markers shown here — not the backend.');
+      if(!ok) return;
+      hazardsLayer.clearLayers(); hazardsList = [];
+      document.getElementById('statHazards').textContent = 0;
+      showToast('Local hazards cleared');
+    });
 
-    // init
+    document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadRoads(); loadHazards(); showToast('Reloaded'); });
+
+    // ---------- init ----------
     initMap();
-
-    // drawer panel switching on startup
     setMode('view');
-
-    // ensure fixed no-scroll
     document.documentElement.style.height = '100%';
     document.body.style.height = '100%';
   </script>

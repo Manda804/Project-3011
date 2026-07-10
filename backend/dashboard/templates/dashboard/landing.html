@@ -40,10 +40,10 @@
   .brand{display:flex; align-items:center; gap:0.85rem;}
   .crest{
     width:46px; height:46px; border-radius:50%;
-    background:radial-gradient(circle at 32% 28%, var(--copper-bright), var(--copper) 55%, #7a3f16 100%);
+    background:radial-gradient(circle at 32% 28%, var(--copper-bright), var(--copper) 55%, #089ddd 100%);
     display:flex; align-items:center; justify-content:center;
     font-family:'Fraunces', serif; font-weight:700; font-size:1.05rem; color:#1a0d02;
-    box-shadow:0 0 0 2px rgba(243,234,217,0.18), 0 8px 22px rgba(201,116,46,0.35);
+    box-shadow:0 0 0 2px rgba(243,234,217,0.18), 0 8px 22px rgba(13, 172, 235, 0.55);
     flex-shrink:0;
   }
   .brand-text .eyebrow{
@@ -93,14 +93,14 @@
   }
   h2.headline em{font-style:italic; font-weight:500; color:var(--copper-bright);}
   .hero p.lede{
-    margin-top:1.6rem; max-width:34ch; font-size:1.05rem; line-height:1.6; color:rgba(243,234,217,0.75);
+    margin-top:1.6rem; max-width:34ch; font-size:1.05rem; line-height:1.6; color:rgba(20, 180, 224, 0.75);
     opacity:0; animation: rise 1s ease forwards .5s;
   }
   .hero-actions{display:flex; gap:1rem; margin-top:2.2rem; opacity:0; animation: rise 1s ease forwards .65s;}
   .btn-primary{
     background:linear-gradient(135deg, var(--copper-bright), var(--copper));
     color:#1a0d02; font-weight:600; padding:0.95rem 1.7rem; border-radius:12px;
-    text-decoration:none; font-size:0.9rem; box-shadow:0 14px 30px rgba(201,116,46,0.28);
+    text-decoration:none; font-size:0.9rem; box-shadow:0 14px 30px rgba(15, 179, 239, 0.67);
     transition:transform .25s ease;
   }
   .btn-primary:hover{transform:translateY(-2px);}
@@ -304,7 +304,7 @@
   const developers = [
     { photo:"{% static 'a.jpg' %}",   initials:'TJ', name:'Thomas Manda',   role:'Full-Stack & Firmware developer',     focus:'Django services, device ingest pipeline, and the live telemetry API.' },
     { photo:"{% static 'b.jpg' %}",  initials:'WM', name:'Wazingwa Mugala',   role:'System Architect',      focus:'System design and architecture.' },
-    { photo:"{% static 'c.jpg' %}", initials:'NB', name:'Faith  ',  role:'project funds manager',     focus:'Organised and allocated project funds ' },
+    { photo:"{% static 'c.png' %}", initials:'NB', name:'Faith  ',  role:'project funds manager',     focus:'Organised and allocated project funds ' },
     { photo:"{% static 'd.png' %}",   initials:'IM', name:'Emmanuel ',   role:'Project Sponsor',  focus:'Funded the project ' },
   ];
 

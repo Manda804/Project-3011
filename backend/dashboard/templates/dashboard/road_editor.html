@@ -12,26 +12,47 @@
                     <p class="mt-1 text-sm text-slate-400">Select a road or hazard and view it with interactive map controls.</p>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                    <a href="{% url 'dashboard-roads' %}" class="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white">Road list</a>
-                    <a href="{% url 'dashboard-hazards' %}" class="rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white">Hazard list</a>
+                    <a href="{% url 'dashboard-roads' %}" class="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800">Road list</a>
+                    <a href="{% url 'dashboard-hazards' %}" class="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800">Hazard list</a>
                 </div>
             </div>
 
             {% if selected_road %}
-            <p class="mt-3 text-xs text-slate-500">
-                Click a node marker on the map to remove it from <span class="text-slate-300">{{ selected_road.name }}</span>.
+            <p class="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                <span class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                Editing nodes for <span class="font-medium text-slate-300">{{ selected_road.name }}</span> — click a node marker to delete it, or drag it to reposition.
             </p>
+            {% else %}
+            <p class="mt-3 text-xs text-slate-500">Choose a road from the panel on the right to inspect and edit its route.</p>
             {% endif %}
 
-            <div id="road-editor-map" class="mt-6 h-[560px] rounded-3xl border border-slate-800 bg-slate-900"></div>
+            <div class="relative mt-6">
+                <div id="road-editor-map" class="h-[420px] w-full rounded-2xl border border-slate-800 bg-slate-900 sm:h-[500px] md:h-[560px]"></div>
+                <div id="mapLoading" class="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/60 text-sm text-slate-400">Loading map…</div>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-sky-400"></span>Road path</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-emerald-400"></span>Selected road</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-orange-400"></span>Hazard</span>
+                <span class="ml-auto hidden font-mono-data sm:inline" id="cursorReadout">— , —</span>
+            </div>
         </div>
     </section>
     <aside class="space-y-6">
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
-            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Road selection</h3>
-            <div class="mt-4 space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Road selection</h3>
+                <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-slate-400">{{ roads|length }}</span>
+            </div>
+            <input id="roadFilter" type="text" placeholder="Filter by name" class="mt-4 w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-2.5 text-sm text-white outline-none transition focus:border-sky-400" />
+            <div id="roadList" class="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
                 {% for road in roads %}
-                <a href="?road_id={{ road.id }}" class="block rounded-3xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-white transition hover:bg-slate-800">{{ road.name }}</a>
+                <a href="?road_id={{ road.id }}" data-road-name="{{ road.name|lower }}" class="block rounded-2xl border px-4 py-3 text-sm text-white transition {% if selected_road.id == road.id %}border-sky-400/50 bg-sky-500/10{% else %}border-slate-800 bg-slate-900 hover:bg-slate-800{% endif %}">
+                    <span class="block font-medium">{{ road.name }}</span>
+                    <span class="mt-0.5 block text-xs text-slate-500">{{ road.speed_limit }} km/h</span>
+                </a>
+                {% empty %}
+                <p class="px-1 py-3 text-sm text-slate-500">No roads yet. Create one from the Map Editor tool.</p>
                 {% endfor %}
             </div>
         </div>
@@ -39,26 +60,32 @@
         {% if selected_road %}
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Selected road</h3>
-            <div class="mt-4 space-y-3 text-sm text-slate-300">
-                <div class="flex justify-between border-b border-slate-800 pb-2">
-                    <span class="text-slate-500">Name</span>
-                    <span class="font-medium text-white">{{ selected_road.name }}</span>
+            <form id="roadEditForm" class="mt-4 space-y-4">
+                <div>
+                    <label class="text-xs text-slate-500">Name</label>
+                    <input id="editRoadName" value="{{ selected_road.name }}" class="mt-1.5 w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-2.5 text-sm text-white outline-none transition focus:border-sky-400" />
                 </div>
-                <div class="flex justify-between">
-                    <span class="text-slate-500">Speed limit</span>
-                    <span class="font-medium text-white">{{ selected_road.speed_limit }} km/h</span>
+                <div>
+                    <label class="text-xs text-slate-500">Speed limit (km/h)</label>
+                    <input id="editRoadSpeed" type="number" value="{{ selected_road.speed_limit }}" class="mt-1.5 w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-2.5 text-sm text-white font-mono-data outline-none transition focus:border-sky-400" />
                 </div>
-            </div>
+                <div class="flex justify-between border-t border-slate-800 pt-3 text-sm text-slate-400">
+                    <span>Nodes</span>
+                    <span class="font-mono-data text-slate-300">{{ selected_road.nodes.count|default:"—" }}</span>
+                </div>
+                <button type="submit" id="saveRoadBtn" class="w-full rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-400">Save changes</button>
+                <p id="saveStatus" class="text-center text-xs text-slate-500"></p>
+            </form>
 
             {% if selected_road.hazards.count > 0 %}
-            <div class="mt-4">
+            <div class="mt-5 border-t border-slate-800 pt-5">
                 <h4 class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Hazard details</h4>
-                <ul class="mt-2 space-y-2">
+                <ul class="mt-3 space-y-2">
                     {% for hazard in selected_road.hazards.all %}
-                    <li class="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+                    <li class="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-xs text-slate-300">
                         <span class="font-medium text-orange-400">{{ hazard.hazard_type }}</span>
-                        <span class="block text-slate-500 mt-1">
-                            Lat {{ hazard.latitude|floatformat:5 }}, Lng {{ hazard.longitude|floatformat:5 }}
+                        <span class="mt-1 block font-mono-data text-slate-500">
+                            {{ hazard.latitude|floatformat:5 }}, {{ hazard.longitude|floatformat:5 }}
                         </span>
                     </li>
                     {% endfor %}
@@ -70,14 +97,17 @@
 
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Guidelines</h3>
-            <ul class="mt-4 space-y-2 text-sm text-slate-400">
-                <li>Choose a road from the list to inspect its route.</li>
-                <li>Use the layer switcher (top-right of the map) to toggle street, satellite, or traffic view.</li>
-                <li>Click a node marker on the selected road to delete it.</li>
+            <ul class="mt-4 space-y-2.5 text-sm text-slate-400">
+                <li class="flex gap-2"><span class="text-sky-400">•</span>Choose a road from the list to inspect its route.</li>
+                <li class="flex gap-2"><span class="text-sky-400">•</span>Use the layer switcher (top-right of the map) to toggle street or satellite view.</li>
+                <li class="flex gap-2"><span class="text-sky-400">•</span>Drag a node marker to reposition it, or click it to delete.</li>
+                <li class="flex gap-2"><span class="text-sky-400">•</span>New roads are drawn from the full-screen Map Editor tool.</li>
             </ul>
         </div>
     </aside>
 </div>
+
+<div id="toast" class="pointer-events-none fixed bottom-6 left-1/2 z-[70] -translate-x-1/2 translate-y-4 rounded-2xl border border-slate-700 bg-slate-900/95 px-5 py-3 text-sm text-white opacity-0 shadow-xl shadow-black/30 transition-all duration-300"></div>
 {% endblock %}
 {% block extra_scripts %}
 {% csrf_token %}
@@ -87,15 +117,190 @@
     const selectedRoadId = {% if selected_road %}{{ selected_road.id }}{% else %}null{% endif %};
     const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
 
-    // Adjust this to match your actual delete endpoint
+    // Adjust these to match your actual Django API routes if they differ.
     const NODE_DELETE_URL_TEMPLATE = (nodeId) => `/api/nodes/${nodeId}/`;
+    const NODE_PATCH_URL_TEMPLATE = (nodeId) => `/api/nodes/${nodeId}/`;
+    const ROAD_PATCH_URL_TEMPLATE = (roadId) => `/api/roads/${roadId}/`;
+
+    function showToast(msg, isError){
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.style.borderColor = isError ? 'rgba(244,63,94,0.4)' : 'rgba(52,211,153,0.35)';
+        t.classList.remove('opacity-0','translate-y-4');
+        t.classList.add('opacity-100','translate-y-0');
+        clearTimeout(window.__toastTimer);
+        window.__toastTimer = setTimeout(()=>{
+            t.classList.add('opacity-0','translate-y-4');
+            t.classList.remove('opacity-100','translate-y-0');
+        }, 2600);
+    }
+
+    async function apiFetch(url, options){
+        options = options || {};
+        options.headers = Object.assign({'Content-Type':'application/json','X-CSRFToken':csrfToken}, options.headers||{});
+        const res = await fetch(url, options);
+        if(!res.ok) throw new Error('Request failed: '+res.status);
+        return res.status === 204 ? null : res.json().catch(()=>null);
+    }
+
+    // Kitwe bounds and center (matches the Map Editor tool)
+    const KITWE_CENTER = [-12.8075, 28.2132];
+    const KITWE_BOUNDS = [[-13.05, 27.85], [-12.55, 28.55]];
 
     const map = L.map('road-editor-map', {
-        center: [ -1.4167, 30.8531 ],
-        zoom: 12,
+        center: KITWE_CENTER,
+        zoom: 13,
+        minZoom: 11,
         zoomControl: false,
+        maxBounds: KITWE_BOUNDS,
+        maxBoundsViscosity: 0.8,
     });
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Base layers
-    const streetLayer =
+    // Base layers: street + satellite
+    const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors, &copy; CARTO', maxZoom: 19
+    });
+    const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri', maxZoom: 19
+    });
+    streetLayer.addTo(map);
+    L.control.layers({ 'Street': streetLayer, 'Satellite': satelliteLayer }, {}, { position: 'topright' }).addTo(map);
+
+    document.getElementById('mapLoading').remove();
+
+    const roadsLayer = L.layerGroup().addTo(map);
+    const hazardsLayer = L.layerGroup().addTo(map);
+    const nodesLayer = L.layerGroup().addTo(map);
+    let selectedPolyline = null;
+
+    function drawRoads(){
+        roadsLayer.clearLayers();
+        roads.forEach(r => {
+            const latlngs = (r.nodes || []).map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
+            if(latlngs.length < 2) return;
+            const isSelected = r.id === selectedRoadId;
+            const poly = L.polyline(latlngs, {
+                color: isSelected ? '#34d399' : '#60a5fa',
+                weight: isSelected ? 6 : 4,
+                opacity: isSelected ? 1 : 0.75
+            }).addTo(roadsLayer);
+            poly.bindTooltip(r.name, { sticky: true });
+            poly.on('click', () => { window.location.href = '?road_id=' + r.id; });
+            if(isSelected){
+                selectedPolyline = poly;
+                map.fitBounds(poly.getBounds(), { padding: [60,60] });
+                drawEditableNodes(r);
+            }
+        });
+    }
+
+    function drawEditableNodes(road){
+        nodesLayer.clearLayers();
+        (road.nodes || []).forEach((node, idx) => {
+            const marker = L.circleMarker([parseFloat(node.latitude), parseFloat(node.longitude)], {
+                radius: 7, color: '#f8fafc', weight: 2, fillColor: '#34d399', fillOpacity: 1, draggable: false
+            }).addTo(nodesLayer);
+            // Leaflet circleMarker isn't natively draggable; use a real marker with a divIcon for drag support.
+            nodesLayer.removeLayer(marker);
+            const dragMarker = L.marker([parseFloat(node.latitude), parseFloat(node.longitude)], {
+                draggable: true,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:14px;height:14px;border-radius:999px;background:#34d399;border:2px solid #f8fafc;box-shadow:0 0 0 2px rgba(52,211,153,0.25)"></div>',
+                    iconSize: [14,14], iconAnchor: [7,7]
+                })
+            }).addTo(nodesLayer);
+            dragMarker.bindTooltip('Node ' + (idx+1) + ' — drag to move, click to delete', { direction: 'top' });
+            dragMarker.on('dragend', async (e) => {
+                const pos = e.target.getLatLng();
+                node.latitude = pos.lat; node.longitude = pos.lng;
+                if(selectedPolyline){
+                    const latlngs = road.nodes.map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
+                    selectedPolyline.setLatLngs(latlngs);
+                }
+                if(node.id){
+                    try{
+                        await apiFetch(NODE_PATCH_URL_TEMPLATE(node.id), { method:'PATCH', body: JSON.stringify({ latitude: pos.lat, longitude: pos.lng }) });
+                        showToast('Node position saved');
+                    }catch(err){ showToast('Could not save node position', true); }
+                }
+            });
+            dragMarker.on('click', async () => {
+                if(!confirm('Delete this node?')) return;
+                nodesLayer.removeLayer(dragMarker);
+                road.nodes.splice(idx, 1);
+                if(selectedPolyline){
+                    const latlngs = road.nodes.map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
+                    selectedPolyline.setLatLngs(latlngs);
+                }
+                if(node.id){
+                    try{
+                        await apiFetch(NODE_DELETE_URL_TEMPLATE(node.id), { method:'DELETE' });
+                        showToast('Node deleted');
+                    }catch(err){ showToast('Could not delete node on server', true); }
+                }
+            });
+        });
+    }
+
+    function drawHazards(){
+        hazardsLayer.clearLayers();
+        hazards.forEach(h => {
+            const lat = parseFloat(h.latitude), lng = parseFloat(h.longitude);
+            const radius = h.warning_distance || h.radius || 50;
+            L.circle([lat, lng], { radius, color: '#fb923c', fillOpacity: 0.15, weight: 1.5 })
+                .bindTooltip(h.hazard_type || 'Hazard')
+                .addTo(hazardsLayer);
+        });
+    }
+
+    drawRoads();
+    drawHazards();
+
+    map.on('mousemove', (e) => {
+        const el = document.getElementById('cursorReadout');
+        if(el) el.textContent = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+    });
+
+    // Road list client-side filter
+    const roadFilterInput = document.getElementById('roadFilter');
+    if(roadFilterInput){
+        roadFilterInput.addEventListener('input', () => {
+            const q = roadFilterInput.value.trim().toLowerCase();
+            document.querySelectorAll('#roadList a[data-road-name]').forEach(a => {
+                a.style.display = a.dataset.roadName.includes(q) ? '' : 'none';
+            });
+        });
+    }
+
+    // Save name / speed limit
+    const roadEditForm = document.getElementById('roadEditForm');
+    if(roadEditForm){
+        roadEditForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('saveRoadBtn');
+            const status = document.getElementById('saveStatus');
+            btn.disabled = true; btn.textContent = 'Saving…';
+            try{
+                await apiFetch(ROAD_PATCH_URL_TEMPLATE(selectedRoadId), {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        name: document.getElementById('editRoadName').value,
+                        speed_limit: Number(document.getElementById('editRoadSpeed').value)
+                    })
+                });
+                status.textContent = 'Saved just now';
+                status.className = 'text-center text-xs text-emerald-400';
+                showToast('Road updated');
+            }catch(err){
+                status.textContent = 'Save failed — check your API route';
+                status.className = 'text-center text-xs text-rose-400';
+                showToast('Save failed', true);
+            }finally{
+                btn.disabled = false; btn.textContent = 'Save changes';
+            }
+        });
+    }
+</script>
+{% endblock %}
