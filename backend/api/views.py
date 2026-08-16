@@ -59,6 +59,21 @@ class RoadDetailAPIView(APIView):
     @transaction.atomic
     def patch(self, request, road_id):
         road = get_object_or_404(Road, pk=road_id)
+
+        if 'nodes' in request.data:
+            nodes = request.data.get('nodes', [])
+            if not isinstance(nodes, list):
+                return Response({'detail': 'Nodes payload must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            road.nodes.all().delete()
+            for idx, node in enumerate(nodes, start=1):
+                RoadNode.objects.create(
+                    road=road,
+                    sequence=idx,
+                    latitude=node['latitude'],
+                    longitude=node['longitude'],
+                )
+
         if 'name' in request.data:
             road.name = request.data['name']
         if 'speed_limit' in request.data:
