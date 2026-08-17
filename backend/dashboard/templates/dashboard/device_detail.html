@@ -8,8 +8,8 @@
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold text-white">{{ device.device_name or device.device_id }}</h2>
-                    <p class="mt-1 text-sm text-slate-400">Latest upload at {{ latest.uploaded_at|date:'M j, Y H:i' if latest else 'no telemetry yet' }}.</p>
+                    <h2 class="text-lg font-semibold text-white">{{ device.device_name|default:device.device_id }}</h2>
+                    <p class="mt-1 text-sm text-slate-400">Latest upload at {% if latest %}{{ latest.uploaded_at|date:'M j, Y H:i' }}{% else %}no telemetry yet{% endif %}.</p>
                 </div>
                 <a href="{% url 'dashboard-devices' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Back to devices</a>
             </div>
@@ -20,11 +20,11 @@
                 </div>
                 <div class="rounded-3xl border border-slate-800 bg-slate-900 p-5">
                     <p class="text-sm text-slate-400">Current map version</p>
-                    <p class="mt-2 text-2xl font-semibold text-white">{{ device.current_map_version.version if device.current_map_version else 'N/A' }}</p>
+                    <p class="mt-2 text-2xl font-semibold text-white">{% if device.current_map_version %}{{ device.current_map_version.version }}{% else %}N/A{% endif %}</p>
                 </div>
             </div>
         </div>
-        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10" id="telemetry">
             <h3 class="text-base font-semibold text-white">Telemetry history</h3>
             <canvas id="device-history-chart" class="mt-4 h-80 w-full"></canvas>
         </div>

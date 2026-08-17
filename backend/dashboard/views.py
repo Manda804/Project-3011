@@ -7,6 +7,10 @@ from django.utils import timezone
 from api.models import Device, Hazard, MapVersion, Road, Telemetry, Violation
 
 
+def index(request):
+    return render(request, 'dashboard/index.html')
+
+
 def _device_status(last_seen):
     if not last_seen:
         return 'offline'

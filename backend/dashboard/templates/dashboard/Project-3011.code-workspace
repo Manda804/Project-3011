@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../../Documents/PlatformIO/Projects/Project 301 backend"
 		}
 	],
 	"settings": {}

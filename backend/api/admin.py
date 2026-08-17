@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Device, Hazard, MapVersion, Road, RoadNode, Telemetry, Violation
+from .models import Device, Hazard, MapVersion, Road, RoadNode, Telemetry, TelemetryRecord, Violation
 
 
 class RoadNodeInline(admin.TabularInline):
@@ -52,6 +52,13 @@ class DeviceAdmin(admin.ModelAdmin):
     list_display = ['device_id', 'device_name', 'current_map_version', 'registered_at', 'last_seen']
     search_fields = ['device_id', 'device_name']
     list_filter = ['current_map_version']
+
+
+@admin.register(TelemetryRecord)
+class TelemetryRecordAdmin(admin.ModelAdmin):
+    list_display = ['device_id', 'speed', 'road_name', 'speeding', 'hazard', 'has_fix', 'timestamp']
+    list_filter = ['device_id', 'speeding', 'on_road', 'has_fix']
+    search_fields = ['device_id', 'road_name']
 
 
 @admin.register(Telemetry)

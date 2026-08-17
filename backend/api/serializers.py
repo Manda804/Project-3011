@@ -3,8 +3,20 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Device, Hazard, MapVersion, Road, RoadNode, Telemetry, Violation
+from .models import Device, Hazard, MapVersion, Road, RoadNode, Telemetry, TelemetryRecord, Violation
 from .services import create_telemetry_with_violation
+
+
+class TelemetrySerializer(serializers.ModelSerializer):
+    device_id = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = TelemetryRecord
+        fields = ['id', 'device', 'device_id', 'speed', 'road_name', 'speed_limit', 'latitude', 'longitude', 'map_version', 'has_fix', 'satellites', 'obd_connected', 'hazard', 'speeding', 'on_road', 'timestamp']
+        read_only_fields = ['id', 'device_id', 'timestamp']
+
+    def get_device_id(self, obj):
+        return obj.device.device_id if obj.device else ''
 
 
 class RoadNodeSerializer(serializers.ModelSerializer):
@@ -83,7 +95,7 @@ class ViolationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'telemetry', 'created_at']
 
 
-class TelemetrySerializer(serializers.ModelSerializer):
+class TelemetryUploadSerializer(serializers.ModelSerializer):
     device_id = serializers.CharField(write_only=True)
     road = serializers.PrimaryKeyRelatedField(queryset=Road.objects.all())
     violation = ViolationSerializer(read_only=True, source='latest_violation')
@@ -125,14 +137,13 @@ class TelemetryHistorySerializer(serializers.ModelSerializer):
 
 
 class MapCheckUpdateSerializer(serializers.Serializer):
-    device_id = serializers.CharField()
-    current_version = serializers.CharField(required=False, allow_blank=True)
+    device_id = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    current_version = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
 
-    def validate_device_id(self, value):
-        try:
-            return Device.objects.get(device_id=value)
-        except Device.DoesNotExist:
-            raise serializers.ValidationError('Device not registered.')
+    def validate_current_version(self, value):
+        if not value or not value.replace('.', '').isdigit():
+            raise serializers.ValidationError('current_version must be a version string such as 1.0.0.0.2')
+        return value
 
 
 class MapDownloadSerializer(serializers.Serializer):

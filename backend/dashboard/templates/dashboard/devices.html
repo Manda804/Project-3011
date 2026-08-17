@@ -34,13 +34,16 @@
                 <tbody>
                     {% for device in devices %}
                     <tr class="border-b border-slate-800 hover:bg-slate-900/80">
-                        <td class="px-5 py-4">{{ device.device_name or device.device_id }}</td>
+                        <td class="px-5 py-4">{{ device.device_name|default:device.device_id }}</td>
                         <td class="px-5 py-4 capitalize text-slate-100">{{ device.status }}</td>
                         <td class="px-5 py-4">{{ device.current_road|default:'—' }}</td>
                         <td class="px-5 py-4">{{ device.current_speed|default:'—' }}</td>
                         <td class="px-5 py-4">{{ device.last_seen|date:'M j, Y H:i' }}</td>
                         <td class="px-5 py-4">
-                            <a href="{% url 'dashboard-device-detail' device.device_id %}" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400">View</a>
+                            <div class="flex gap-2">
+                                <a href="{% url 'dashboard-device-detail' device.device_id %}" class="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400">View</a>
+                                <a href="{% url 'dashboard-device-detail' device.device_id %}#telemetry" class="rounded-2xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400">Telemetry</a>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
