@@ -223,6 +223,14 @@
                 <label class="label">Nodes (lat, lng)</label>
                 <button id="addNodeToggle" class="text-xs text-sky-400 hover:text-sky-300 font-medium">+ Add point</button>
               </div>
+              <div class="mt-2">
+                <label class="label">Insert node at</label>
+                <select id="nodeInsertMode" class="field mt-1.5">
+                  <option value="nearest">Nearest end</option>
+                  <option value="start">Start of road</option>
+                  <option value="end">End of road</option>
+                </select>
+              </div>
               <div id="infoNodes" class="mt-2 space-y-1.5 max-h-40 overflow-y-auto"></div>
               <p class="label mt-2">Tip: drag a node marker on the map to move it. Click a marker to delete it.</p>
             </div>
@@ -342,6 +350,31 @@
     let roads = [];
     let hazardsList = [];
     let selectedRoad = null;
+    let nodeInsertMode = 'nearest';
+
+    function getRoadInsertionSide(road, latlng){
+      if(!road || !road.nodes || road.nodes.length === 0) return 'end';
+      const first = L.latLng(road.nodes[0][0], road.nodes[0][1]);
+      const last = L.latLng(road.nodes[road.nodes.length-1][0], road.nodes[road.nodes.length-1][1]);
+      const firstDistance = first.distanceTo(latlng);
+      const lastDistance = last.distanceTo(latlng);
+      if(nodeInsertMode === 'start') return 'start';
+      if(nodeInsertMode === 'end') return 'end';
+      return firstDistance <= lastDistance ? 'start' : 'end';
+    }
+
+    function addRoadNodeAtSelectedSide(road, latlng){
+      if(!road || !road.nodes || road.nodes.length === 0){
+        road.nodes = [[latlng.lat, latlng.lng]];
+        return 'end';
+      }
+
+      const side = getRoadInsertionSide(road, latlng);
+      const point = [latlng.lat, latlng.lng];
+      if(side === 'start') road.nodes.unshift(point);
+      else road.nodes.push(point);
+      return side;
+    }
 
     function initMap(){
       map = L.map('map', {
@@ -507,11 +540,11 @@
         document.getElementById('saveDraft').disabled = currentDraft.nodes.length < 2;
         document.getElementById('drawStatus').textContent = currentDraft.nodes.length + ' point(s) placed';
       } else if(mode === 'road_info' && addingNode && selectedRoad){
-        selectedRoad.roadData.nodes.push([e.latlng.lat, e.latlng.lng]);
+        const side = addRoadNodeAtSelectedSide(selectedRoad.roadData, e.latlng);
         selectedRoad.setLatLngs(selectedRoad.roadData.nodes);
         drawEditableNodes(selectedRoad);
         renderNodeList(selectedRoad.roadData);
-        showToast('Point added — remember to save changes');
+        showToast(side === 'start' ? 'Point added to start of road — remember to save changes' : 'Point added to end of road — remember to save changes');
       } else if(mode === 'hazard'){
         const t = document.getElementById('hazardType').value;
         const r = Number(document.getElementById('hazardRadius').value) || 50;
@@ -615,6 +648,10 @@
       });
     }
 
+    document.getElementById('nodeInsertMode').addEventListener('change', (e)=>{
+      nodeInsertMode = e.target.value;
+    });
+
     document.getElementById('addNodeToggle').addEventListener('click', (e)=>{
       addingNode = !addingNode;
       e.target.textContent = addingNode ? 'Click map to add…' : '+ Add point';
@@ -638,19 +675,35 @@
       setMode('view');
     });
 
-    document.getElementById('saveInfoBtn').addEventListener('click', ()=>{
+    document.getElementById('saveInfoBtn').addEventListener('click', async ()=>{
       if(!selectedRoad) return;
+      const roadId = selectedRoad.roadId ?? selectedRoad.roadData?.id;
+      if(!roadId){
+        showToast('This road is not saved in the backend yet. Save the road once before editing its points.', true);
+        return;
+      }
+
       const name = document.getElementById('infoName').value || selectedRoad.roadData.name;
       const speed = Number(document.getElementById('infoSpeed').value) || selectedRoad.roadData.speed;
       selectedRoad.roadData.name = name; selectedRoad.roadData.speed = speed;
       selectedRoad.setTooltipContent && selectedRoad.setTooltipContent(name);
-      const apiPayload = {
-        name, speed_limit: speed,
+
+      const nodesPayload = {
         nodes: selectedRoad.roadData.nodes.map(n=>({latitude:n[0], longitude:n[1]}))
       };
-      apiFetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id), {method:'PATCH', body:JSON.stringify(apiPayload)})
-        .then(()=>showToast('Road changes saved'))
-        .catch(()=>showToast('Save failed — check your API route', true));
+      const roadPayload = {
+        name,
+        speed_limit: speed,
+      };
+
+      try {
+        await apiFetch('/api/roads/' + roadId + '/nodes/', {method:'PATCH', body:JSON.stringify(nodesPayload)});
+        await apiFetch('/api/roads/' + roadId + '/', {method:'PATCH', body:JSON.stringify(roadPayload)});
+        showToast('Road changes saved');
+      } catch (err) {
+        console.error(err);
+        showToast('Save failed — check your API route', true);
+      }
     });
 
     // ---------- hazard panel ----------

@@ -6,6 +6,7 @@ from .views import (
     device_detail_view,
     devices_view,
     hazards_view,
+    index,
     landing_view,
     road_editor_view,
     roads_view,
@@ -14,7 +15,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path('', landing_view, name='dashboard-landing'),
+    path('', landing_view, name='dashboard'),
     path('overview/', dashboard_home, name='dashboard-home'),
     path('roads/', roads_view, name='dashboard-roads'),
     path('road-editor/', road_editor_view, name='dashboard-road-editor'),

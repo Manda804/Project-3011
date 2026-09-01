@@ -92,7 +92,7 @@ class MapVersion(models.Model):
             if all(part.isdigit() for part in parts):
                 parts[-1] = str(int(parts[-1]) + 1)
                 return '.'.join(parts)
-        return '1.0.0.0.1'
+        return '1.0.0.0.2'
 
     def generate_package(self):
         roads = []
@@ -143,6 +143,33 @@ class Device(models.Model):
 
     def __str__(self):
         return self.device_id
+
+
+class TelemetryRecord(models.Model):
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='telemetry_records', null=True, blank=True)
+    speed = models.FloatField()
+    road_name = models.CharField(max_length=64, blank=True)
+    speed_limit = models.FloatField(default=0)
+    latitude = models.FloatField(default=0)
+    longitude = models.FloatField(default=0)
+    map_version = models.CharField(max_length=16, blank=True)
+    has_fix = models.BooleanField(default=False)
+    satellites = models.IntegerField(default=0)
+    obd_connected = models.BooleanField(default=False)
+    hazard = models.CharField(max_length=32, blank=True)
+    speeding = models.BooleanField(default=False)
+    on_road = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    @property
+    def device_id(self):
+        return self.device.device_id if self.device else ''
+
+    def __str__(self):
+        return f'{self.device_id or "unknown"} at {self.timestamp}'
 
 
 class Telemetry(models.Model):
