@@ -34,7 +34,7 @@
                 <tbody>
                     {% for device in devices %}
                     <tr class="border-b border-slate-800 hover:bg-slate-900/80">
-                        <td class="px-5 py-4">{{ device.device_name or device.device_id }}</td>
+                        <td class="px-5 py-4">{% if device.device_name %}{{ device.device_name }}{% else %}{{ device.device_id }}{% endif %}</td>
                         <td class="px-5 py-4 capitalize text-slate-100">{{ device.status }}</td>
                         <td class="px-5 py-4">{{ device.current_road|default:'—' }}</td>
                         <td class="px-5 py-4">{{ device.current_speed|default:'—' }}</td>
