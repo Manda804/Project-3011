@@ -4,10 +4,60 @@ from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import MapVersion, Road, RoadNode
+from .models import Device, MapVersion, Road, RoadNode, TelemetryRecord
 
 
 class RoadUpdateTests(TestCase):
+    def test_telemetry_automatically_registers_and_tracks_a_new_device(self):
+        response = self.client.post(
+            reverse('telemetry-upload'),
+            data=json.dumps({
+                'device_id': 'ESP32-001',
+                'device_name': 'Fleet unit 1',
+                'speed': 42.5,
+                'latitude': -12.8024,
+                'longitude': 28.2132,
+                'has_fix': True,
+                'map_version': '1.0.0.0.2',
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        device = Device.objects.get(device_id='ESP32-001')
+        self.assertEqual(device.device_name, 'Fleet unit 1')
+        self.assertIsNotNone(device.last_seen)
+        self.assertTrue(TelemetryRecord.objects.filter(device=device, latitude=-12.8024, longitude=28.2132).exists())
+
+        listing = self.client.get(reverse('device-list')).json()['devices']
+        self.assertEqual(listing[0]['status'], 'online')
+        self.assertEqual(listing[0]['latitude'], -12.8024)
+        self.assertEqual(listing[0]['longitude'], 28.2132)
+
+        latest = self.client.get(reverse('device-latest', args=['ESP32-001']))
+        self.assertEqual(latest.status_code, 200)
+        self.assertEqual(latest.json()['map_version'], '1.0.0.0.2')
+        self.assertEqual(latest.json()['device_id'], 'ESP32-001')
+
+    def test_repeated_device_name_does_not_create_a_duplicate_device(self):
+        Device.objects.create(device_id='ESP32-001', device_name='Fleet unit 1')
+
+        response = self.client.post(
+            reverse('telemetry-upload'),
+            data=json.dumps({
+                'device_id': 'ESP32-CHANGED',
+                'device_name': 'fleet UNIT 1',
+                'speed': 20,
+                'latitude': -12.8,
+                'longitude': 28.2,
+                'has_fix': True,
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Device.objects.count(), 1)
+        self.assertEqual(TelemetryRecord.objects.select_related('device').get().device.device_id, 'ESP32-001')
     def test_patch_road_updates_name_and_nodes(self):
         road = Road.objects.create(name='Old Road', speed_limit=40)
         RoadNode.objects.create(road=road, sequence=1, latitude='1.0000000', longitude='2.0000000')

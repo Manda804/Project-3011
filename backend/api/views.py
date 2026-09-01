@@ -53,6 +53,45 @@ def _create_map_version_on_edit():
     return publish_map_update(description='Map updated from dashboard')
 
 
+def _device_name_from_payload(payload):
+    """Accept the common ESP32 name keys while keeping one canonical name."""
+    for key in ('device_name', 'deviceName', 'name'):
+        value = payload.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()[:128]
+    return ''
+
+
+def _register_or_touch_device(payload):
+    """Register a device on first contact and refresh its connection state."""
+    device_id = str(payload.get('device_id', '')).strip()
+    if not device_id:
+        return None
+
+    reported_name = _device_name_from_payload(payload)
+    device_name = reported_name or device_id
+    now = timezone.now()
+    with transaction.atomic():
+        # A matching name is an existing inventory entry, so reconnects never
+        # create a duplicate even if the sender supplies a different ID.
+        device = Device.objects.select_for_update().filter(device_name__iexact=device_name).first()
+        if device is None:
+            device, created = Device.objects.select_for_update().get_or_create(
+                device_id=device_id,
+                defaults={'device_name': device_name, 'last_seen': now},
+            )
+            if not created and (not device.device_name or (reported_name and device.device_name == device_id)):
+                device.device_name = device_name
+        device.last_seen = now
+        if payload.get('map_version'):
+            device.current_map_version = (
+                MapVersion.objects.filter(version=payload['map_version']).order_by('-created_at').first()
+                or device.current_map_version
+            )
+        device.save(update_fields=['device_name', 'last_seen', 'current_map_version'])
+    return device
+
+
 class RoadListCreateAPIView(APIView):
     def get(self, request):
         roads = Road.objects.prefetch_related('nodes', 'hazards').all()
@@ -180,7 +219,7 @@ class HazardDetailAPIView(APIView):
 class DeviceListAPIView(APIView):
     def get(self, request):
         latest_by_device = {}
-        for telemetry in Telemetry.objects.select_related('road', 'device').order_by('-uploaded_at'):
+        for telemetry in TelemetryRecord.objects.select_related('device').exclude(device=None).order_by('-timestamp'):
             latest_by_device.setdefault(telemetry.device.device_id, telemetry)
 
         devices = []
@@ -197,7 +236,7 @@ class DeviceListAPIView(APIView):
                 'device_id': device.device_id,
                 'device_name': device.device_name,
                 'current_speed': float(telemetry.speed) if telemetry else None,
-                'current_road': telemetry.road.name if telemetry else None,
+                'current_road': telemetry.road_name if telemetry else None,
                 'latitude': float(telemetry.latitude) if telemetry else None,
                 'longitude': float(telemetry.longitude) if telemetry else None,
                 'last_seen': last_seen.isoformat() if last_seen else None,
@@ -249,69 +288,49 @@ class DeviceDetailAPIView(generics.RetrieveAPIView):
 class DeviceLatestAPIView(APIView):
     def get(self, request, device_id):
         device = get_object_or_404(Device, device_id=device_id)
-        telemetry = Telemetry.objects.filter(device=device).order_by('-uploaded_at').first()
+        telemetry = TelemetryRecord.objects.filter(device=device).order_by('-timestamp').first()
         if not telemetry:
             return Response({'detail': 'No telemetry available for this device.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = DeviceLatestTelemetrySerializer(telemetry)
+        serializer = TelemetrySerializer(telemetry)
         return Response(serializer.data)
 
 
 class DeviceHistoryAPIView(generics.ListAPIView):
-    serializer_class = TelemetryHistorySerializer
+    serializer_class = TelemetrySerializer
 
     def get_queryset(self):
         device_id = self.kwargs['device_id']
         device = get_object_or_404(Device, device_id=device_id)
-        return Telemetry.objects.filter(device=device).order_by('-uploaded_at')
+        return TelemetryRecord.objects.filter(device=device).order_by('-timestamp')
 
 
 class TelemetryUploadAPIView(APIView):
     def post(self, request):
+        device = _register_or_touch_device(request.data)
+        if device is None:
+            return Response({'device_id': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
         serializer = TelemetrySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        record = serializer.save()
-        _broadcast_telemetry(serializer.data)
-        return Response({'status': 'ok', 'id': record.id}, status=status.HTTP_201_CREATED)
+        record = serializer.save(device=device)
+        _broadcast_telemetry(TelemetrySerializer(record).data)
+        return Response({'status': 'ok', 'id': record.id, 'device_id': device.device_id}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['POST'])
 def telemetry_upload(request):
     payload = request.data.copy()
-    device_id = payload.get('device_id')
+    device = _register_or_touch_device(payload)
+    if device is None:
+        return Response({'device_id': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
 
-    device = None
-    if device_id:
-        device, _ = Device.objects.get_or_create(
-            device_id=device_id,
-            defaults={'device_name': device_id, 'last_seen': timezone.now()}
-        )
-        device.last_seen = timezone.now()
-        device.device_name = device.device_name or device_id
-        if payload.get('map_version'):
-            device.current_map_version = MapVersion.objects.filter(version=payload['map_version']).order_by('-created_at').first() or device.current_map_version
-        device.save(update_fields=['device_name', 'last_seen', 'current_map_version'])
-
-    data = payload
-    if device is not None:
-        data = payload.copy()
-        data['device'] = device.id
-        data['device_id'] = device.device_id
-
-    serializer = TelemetrySerializer(data=data)
+    serializer = TelemetrySerializer(data=payload)
     serializer.is_valid(raise_exception=True)
     record = serializer.save(device=device)
 
-    if device is not None:
-        device.last_seen = timezone.now()
-        device.save(update_fields=['last_seen'])
-        if payload.get('map_version'):
-            device.current_map_version = MapVersion.objects.filter(version=payload['map_version']).order_by('-created_at').first() or device.current_map_version
-            device.save(update_fields=['current_map_version'])
-
     broadcast_payload = dict(serializer.data)
-    broadcast_payload['device_id'] = device.device_id if device else payload.get('device_id')
+    broadcast_payload['device_id'] = device.device_id
     _broadcast_telemetry(broadcast_payload)
-    return Response({'status': 'ok', 'id': record.id, 'device_id': device.device_id if device else payload.get('device_id')}, status=status.HTTP_201_CREATED)
+    return Response({'status': 'ok', 'id': record.id, 'device_id': device.device_id}, status=status.HTTP_201_CREATED)
 
 
 class MapCheckUpdateAPIView(APIView):
@@ -346,6 +365,11 @@ def map_check_update(request):
 
     device_id = serializer.validated_data['device_id']
     current_version = serializer.validated_data['current_version']
+    _register_or_touch_device({
+        'device_id': device_id,
+        'device_name': _device_name_from_payload(payload),
+        'map_version': current_version,
+    })
     latest = MapVersion.objects.current() or ensure_initial_map_version()
     generate_map_files(latest)
 

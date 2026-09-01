@@ -56,9 +56,9 @@ class DeviceAdmin(admin.ModelAdmin):
 
 @admin.register(TelemetryRecord)
 class TelemetryRecordAdmin(admin.ModelAdmin):
-    list_display = ['device_id', 'speed', 'road_name', 'speeding', 'hazard', 'has_fix', 'timestamp']
-    list_filter = ['device_id', 'speeding', 'on_road', 'has_fix']
-    search_fields = ['device_id', 'road_name']
+    list_display = ['device', 'speed', 'road_name', 'speeding', 'hazard', 'has_fix', 'timestamp']
+    list_filter = ['device', 'speeding', 'on_road', 'has_fix']
+    search_fields = ['device__device_id', 'device__device_name', 'road_name']
 
 
 @admin.register(Telemetry)

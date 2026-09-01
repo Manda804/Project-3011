@@ -4,7 +4,7 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
-from api.models import Device, Hazard, MapVersion, Road, Telemetry, Violation
+from api.models import Device, Hazard, MapVersion, Road, Telemetry, TelemetryRecord, Violation
 
 
 def index(request):
@@ -140,14 +140,14 @@ def devices_view(request):
     devices = Device.objects.select_related('current_map_version').all()
     active_devices = []
     for device in devices:
-        latest = Telemetry.objects.filter(device=device).order_by('-uploaded_at').first()
+        latest = TelemetryRecord.objects.filter(device=device).order_by('-timestamp').first()
         status = _device_status(device.last_seen)
         active_devices.append({
             'id': device.id,
             'device_id': device.device_id,
             'device_name': device.device_name,
             'current_speed': float(latest.speed) if latest else None,
-            'current_road': latest.road.name if latest else None,
+            'current_road': latest.road_name if latest else None,
             'latitude': float(latest.latitude) if latest else None,
             'longitude': float(latest.longitude) if latest else None,
             'last_seen': device.last_seen,
@@ -170,8 +170,13 @@ def devices_view(request):
 
 def device_detail_view(request, device_id):
     device = get_object_or_404(Device.objects.select_related('current_map_version'), device_id=device_id)
-    latest = Telemetry.objects.filter(device=device).select_related('road').order_by('-uploaded_at').first()
-    history = Telemetry.objects.filter(device=device).select_related('road').order_by('-uploaded_at')[:100]
+    telemetry = TelemetryRecord.objects.filter(device=device).order_by('-timestamp')
+    latest = telemetry.first()
+    # Keep the last usable GPS position on screen when a newer upload is still
+    # waiting for a GPS fix and therefore contains 0, 0 coordinates.
+    latest_location = telemetry.filter(has_fix=True).exclude(latitude=0).exclude(longitude=0).first()
+    latest_version = telemetry.exclude(map_version='').first()
+    history = telemetry[:100]
     violations = Violation.objects.filter(device=device).order_by('-created_at')[:50]
     status = _device_status(device.last_seen)
 
@@ -179,18 +184,30 @@ def device_detail_view(request, device_id):
         'page': 'devices',
         'device': device,
         'latest': latest,
+        'latest_location': latest_location,
+        'reported_map_version': (
+            latest_version.map_version if latest_version else
+            (device.current_map_version.version if device.current_map_version else '')
+        ),
         'history': history,
         'violations': violations,
         'device_status': status,
         'history_json': json.dumps([
             {
-                'timestamp': telemetry.uploaded_at.isoformat(),
+                'timestamp': telemetry.timestamp.isoformat(),
                 'speed': float(telemetry.speed),
                 'latitude': float(telemetry.latitude),
                 'longitude': float(telemetry.longitude),
             }
             for telemetry in history
         ]),
+        'latest_location_json': json.dumps(
+            {
+                'latitude': latest_location.latitude,
+                'longitude': latest_location.longitude,
+            }
+            if latest_location else None
+        ),
         'violations_json': json.dumps([
             {
                 'timestamp': violation.created_at.isoformat(),

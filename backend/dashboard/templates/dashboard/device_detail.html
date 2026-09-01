@@ -8,25 +8,30 @@
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold text-white">{{ device.device_name|default:device.device_id }}</h2>
-                    <p class="mt-1 text-sm text-slate-400">Latest upload at {% if latest %}{{ latest.uploaded_at|date:'M j, Y H:i' }}{% else %}no telemetry yet{% endif %}.</p>
+                    <h2 id="device-name" class="text-lg font-semibold text-white">{{ device.device_name|default:device.device_id }}</h2>
+                    <p class="mt-1 text-sm text-slate-400">Device ID: <span id="device-id">{{ device.device_id }}</span> · <span id="latest-upload">{% if latest %}Latest upload {{ latest.timestamp|date:'M j, Y H:i' }}{% else %}No telemetry yet{% endif %}</span></p>
                 </div>
                 <a href="{% url 'dashboard-devices' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Back to devices</a>
             </div>
             <div class="mt-6 grid gap-4 sm:grid-cols-2">
                 <div class="rounded-3xl border border-slate-800 bg-slate-900 p-5">
                     <p class="text-sm text-slate-400">Status</p>
-                    <p class="mt-2 text-2xl font-semibold text-white">{{ device_status|default:'N/A' }}</p>
+                    <p id="device-status" class="mt-2 text-2xl font-semibold text-white">{{ device_status|default:'N/A' }}</p>
                 </div>
                 <div class="rounded-3xl border border-slate-800 bg-slate-900 p-5">
                     <p class="text-sm text-slate-400">Current map version</p>
-                    <p class="mt-2 text-2xl font-semibold text-white">{% if device.current_map_version %}{{ device.current_map_version.version }}{% else %}N/A{% endif %}</p>
+                    <p id="map-version" class="mt-2 text-2xl font-semibold text-white">{{ reported_map_version|default:'N/A' }}</p>
                 </div>
             </div>
         </div>
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10" id="telemetry">
             <h3 class="text-base font-semibold text-white">Telemetry history</h3>
             <canvas id="device-history-chart" class="mt-4 h-80 w-full"></canvas>
+        </div>
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-base font-semibold text-white">Live location</h3>
+            <div id="device-location-map" class="mt-4 h-80 w-full rounded-2xl"></div>
+            <p id="location-message" class="mt-3 text-sm text-slate-400">{% if latest_location %}Last valid GPS location shown on the map.{% else %}Waiting for a valid GPS fix from this device.{% endif %}</p>
         </div>
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-base font-semibold text-white">Recent violations</h3>
@@ -51,15 +56,11 @@
     <aside class="space-y-6">
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Current telemetry</h3>
-            {% if latest %}
             <div class="mt-4 space-y-3 text-sm text-slate-300">
-                <p><strong>Road:</strong> {{ latest.road.name }}</p>
-                <p><strong>Speed:</strong> {{ latest.speed }} km/h</p>
-                <p><strong>Coordinates:</strong> {{ latest.latitude }}, {{ latest.longitude }}</p>
+                <p><strong>Road:</strong> <span id="current-road">{{ latest.road_name|default:'Not matched to a road' }}</span></p>
+                <p><strong>Speed:</strong> <span id="current-speed">{{ latest.speed|default:'—' }}</span> km/h</p>
+                <p><strong>Coordinates:</strong> <span id="current-coordinates">{{ latest_location.latitude|default:'—' }}, {{ latest_location.longitude|default:'—' }}</span></p>
             </div>
-            {% else %}
-            <p class="mt-4 text-sm text-slate-400">No telemetry available for this device.</p>
-            {% endif %}
         </div>
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Actions</h3>
@@ -105,5 +106,63 @@
             },
         },
     });
+
+    const deviceId = '{{ device.device_id|escapejs }}';
+    const initialLocation = {{ latest_location_json|safe }};
+    const locationMap = L.map('device-location-map').setView(initialLocation ? [initialLocation.latitude, initialLocation.longitude] : [-12.8024, 28.2132], initialLocation ? 15 : 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(locationMap);
+    let locationMarker = null;
+
+    function hasValidLocation(telemetry) {
+        return telemetry && telemetry.has_fix && Number(telemetry.latitude) !== 0 && Number(telemetry.longitude) !== 0;
+    }
+
+    function updateLocation(telemetry, deviceName) {
+        if (!hasValidLocation(telemetry)) return;
+        const location = [Number(telemetry.latitude), Number(telemetry.longitude)];
+        if (!locationMarker) locationMarker = L.marker(location).addTo(locationMap);
+        locationMarker.setLatLng(location).bindPopup(deviceName || deviceId);
+        locationMap.setView(location, 15);
+        document.getElementById('current-coordinates').textContent = `${location[0]}, ${location[1]}`;
+        document.getElementById('location-message').textContent = 'Last valid GPS location shown on the map.';
+    }
+
+    if (initialLocation) updateLocation({ ...initialLocation, has_fix: true }, document.getElementById('device-name').textContent);
+
+    function statusFromLastSeen(lastSeen) {
+        if (!lastSeen) return 'offline';
+        const age = (Date.now() - new Date(lastSeen).getTime()) / 1000;
+        return age <= 300 ? 'online' : age <= 900 ? 'recent' : 'offline';
+    }
+
+    async function refreshDevice() {
+        try {
+            const [deviceResponse, telemetryResponse] = await Promise.all([
+                fetch(`/api/devices/${encodeURIComponent(deviceId)}/`),
+                fetch(`/api/devices/${encodeURIComponent(deviceId)}/latest/`),
+            ]);
+            if (!deviceResponse.ok) return;
+            const deviceData = await deviceResponse.json();
+            const deviceName = deviceData.device_name || deviceData.device_id;
+            document.getElementById('device-name').textContent = deviceName;
+            document.getElementById('device-status').textContent = statusFromLastSeen(deviceData.last_seen);
+
+            if (!telemetryResponse.ok) return;
+            const telemetry = await telemetryResponse.json();
+            document.getElementById('map-version').textContent = telemetry.map_version || deviceData.current_map_version?.version || 'N/A';
+            document.getElementById('current-road').textContent = telemetry.road_name || 'Not matched to a road';
+            document.getElementById('current-speed').textContent = telemetry.speed ?? '—';
+            document.getElementById('latest-upload').textContent = `Latest upload ${new Date(telemetry.timestamp).toLocaleString()}`;
+            updateLocation(telemetry, deviceName);
+        } catch (error) {
+            // Keep the last known values visible while the device or network reconnects.
+        }
+    }
+
+    refreshDevice();
+    window.setInterval(refreshDevice, 5000);
 </script>
 {% endblock %}
