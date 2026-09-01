@@ -1,368 +1,108 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Live Telemetry Dashboard</title>
-    <style>
-        :root {
-            --bg: #07111d;
-            --panel: #101b2a;
-            --panel-2: #162536;
-            --line: rgba(148, 163, 184, 0.18);
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --green: #34d399;
-            --yellow: #fbbf24;
-            --red: #f87171;
-            --blue: #60a5fa;
-            --purple: #a78bfa;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: linear-gradient(180deg, #020817 0%, #07111d 100%);
-            color: var(--text);
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            max-width: 1280px; margin: 0 auto; padding: 24px;
-        }
-        .topbar {
-            display: flex; justify-content: space-between; align-items: center; gap: 12px;
-            margin-bottom: 24px; padding: 18px 20px; background: rgba(15, 23, 42, 0.9);
-            border: 1px solid var(--line); border-radius: 16px;
-        }
-        .brand { font-size: 1.5rem; font-weight: 700; }
-        .live-indicator {
-            display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.08em;
-            padding: 8px 12px; border-radius: 999px; background: rgba(15,118,110,0.12); color: #a7f3d0; border: 1px solid rgba(16,185,129,0.3);
-        }
-        .live-indicator.disconnected {
-            background: rgba(127, 29, 29, 0.12); color: #fecaca; border-color: rgba(248, 113, 113, 0.3);
-        }
-        .dot {
-            width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.15);
-        }
-        .live-indicator.disconnected .dot { background: var(--red); box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.12); }
-        .grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;
-        }
-        .card {
-            background: rgba(16, 27, 42, 0.92); border: 1px solid var(--line); border-radius: 16px; padding: 18px;
-            box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35);
-        }
-        .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-        .value {
-            margin-top: 8px; font-size: clamp(1.5rem, 2vw, 2.2rem); font-weight: 700; letter-spacing: -0.04em;
-        }
-        .value.speed-good { color: var(--green); }
-        .value.speed-warning { color: var(--yellow); }
-        .value.speed-danger { color: var(--red); }
-        .two-col {
-            display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; margin-bottom: 24px;
-        }
-        .table-wrap { overflow-x: auto; }
-        table {
-            width: 100%; border-collapse: collapse; font-size: 0.95rem;
-        }
-        th, td {
-            padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left;
-        }
-        th {
-            color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em;
-        }
-        .badge {
-            display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
-            border: 1px solid transparent;
-        }
-        .badge.ok { background: rgba(52, 211, 153, 0.12); color: #a7f3d0; border-color: rgba(52, 211, 153, 0.25); }
-        .badge.speeding { background: rgba(248, 113, 113, 0.12); color: #fecaca; border-color: rgba(248, 113, 113, 0.25); }
-        .badge.offroad { background: rgba(167, 139, 250, 0.12); color: #ddd6fe; border-color: rgba(167, 139, 250, 0.25); }
-        .badge.gps-off { background: rgba(251, 191, 36, 0.12); color: #fef3c7; border-color: rgba(251, 191, 36, 0.25); }
-        .badge.gps-on { background: rgba(52, 211, 153, 0.12); color: #a7f3d0; border-color: rgba(52, 211, 153, 0.25); }
-        @media (max-width: 760px){
-            .two-col { grid-template-columns: 1fr; }
-            .container { padding: 14px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="topbar">
-            <div class="brand">Telemetry Monitor</div>
-            <div id="connectionBadge" class="live-indicator disconnected"><span class="dot"></span>DISCONNECTED</div>
-        </div>
+{% extends 'dashboard/base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_heading %}Dashboard{% endblock %}
+{% block page_description %}Manage roads, hazards, devices and analytics from one workspace.{% endblock %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-3 xl:grid-cols-4">
+    <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+        <p class="text-sm text-slate-400">Total roads</p>
+        <p class="mt-3 text-4xl font-semibold text-white">{{ road_count }}</p>
+    </div>
+    <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+        <p class="text-sm text-slate-400">Total hazards</p>
+        <p class="mt-3 text-4xl font-semibold text-white">{{ hazard_count }}</p>
+    </div>
+    <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+        <p class="text-sm text-slate-400">Total violations</p>
+        <p class="mt-3 text-4xl font-semibold text-white">{{ violation_count }}</p>
+    </div>
+    <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+        <p class="text-sm text-slate-400">Active devices</p>
+        <p class="mt-3 text-4xl font-semibold text-white">{{ device_count }}</p>
+    </div>
+</div>
 
-        <div class="grid">
-            <div class="card">
-                <div class="label">Speed</div>
-                <div id="speedValue" class="value speed-good">0 km/h</div>
+<div class="mt-8 grid gap-6 xl:grid-cols-[1fr_0.5fr]">
+    <div class="space-y-6">
+        <!-- Recent Telemetry -->
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white">Recent telemetry</h3>
+                <a href="{% url 'dashboard-devices' %}" class="text-sm text-sky-400 hover:text-sky-300">View all</a>
             </div>
-            <div class="card">
-                <div class="label">Speed Limit</div>
-                <div id="speedLimitValue" class="value">0 km/h</div>
-            </div>
-            <div class="card">
-                <div class="label">Road</div>
-                <div id="roadValue" class="value">--</div>
-            </div>
-            <div class="card">
-                <div class="label">Latitude</div>
-                <div id="latValue" class="value">0.000000</div>
-            </div>
-            <div class="card">
-                <div class="label">Longitude</div>
-                <div id="lngValue" class="value">0.000000</div>
-            </div>
-            <div class="card">
-                <div class="label">Satellites</div>
-                <div id="satValue" class="value">0</div>
-            </div>
-            <div class="card">
-                <div class="label">Hazard</div>
-                <div id="hazardValue" class="value">None</div>
-            </div>
-            <div class="card">
-                <div class="label">OBD</div>
-                <div id="obdValue" class="value">Disconnected</div>
-            </div>
-            <div class="card">
-                <div class="label">GPS Fix</div>
-                <div id="gpsValue" class="value">No fix</div>
+            <div class="mt-4 space-y-4">
+                {% for telemetry in recent_telemetry %}
+                <div class="rounded-3xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-semibold text-white">{% if telemetry.device.device_name %}{{ telemetry.device.device_name }}{% else %}{{ telemetry.device.device_id }}{% endif %}</p>
+                            <p class="text-xs text-slate-400">{{ telemetry.uploaded_at|date:'M j, Y H:i' }}</p>
+                        </div>
+                        <p class="text-lg font-semibold text-white">{{ telemetry.speed }} km/h</p>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-400">{{ telemetry.road.name }}</p>
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-400">No telemetry data available</p>
+                {% endfor %}
             </div>
         </div>
 
-        <div class="two-col">
-            <div class="card">
-                <div class="label">Status</div>
-                <div id="statusValue" class="value">Waiting for data…</div>
+        <!-- Recent Violations -->
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white">Recent violations</h3>
+                <a href="{% url 'dashboard-violations' %}" class="text-sm text-sky-400 hover:text-sky-300">View all</a>
             </div>
-            <div class="card">
-                <div class="label">Latest Version</div>
-                <div id="versionValue" class="value">1.0.0.0.2</div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div style="margin-bottom: 16px; font-weight: 700; font-size: 1.1rem;">Latest 50 readings</div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Speed</th>
-                            <th>Limit</th>
-                            <th>Road</th>
-                            <th>Status</th>
-                            <th>Hazard</th>
-                            <th>GPS</th>
-                        </tr>
-                    </thead>
-                    <tbody id="telemetryTableBody"></tbody>
-                </table>
+            <div class="mt-4 space-y-4">
+                {% for violation in recent_violations %}
+                <div class="rounded-3xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-semibold text-white capitalize">{{ violation.severity|lower }}</p>
+                            <p class="text-xs text-slate-400">{{ violation.created_at|date:'M j, Y H:i' }}</p>
+                        </div>
+                        <p class="text-sm text-slate-400">{{ violation.device.device_id }}</p>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-400">Speed: {{ violation.speed }} km/h (limit: {{ violation.speed_limit }} km/h)</p>
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-400">No violations recorded</p>
+                {% endfor %}
             </div>
         </div>
     </div>
 
-    <script>
-        const defaultState = {
-            speed: 0,
-            speed_limit: 0,
-            road_name: '--',
-            latitude: 0,
-            longitude: 0,
-            satellites: 0,
-            hazard: 'None',
-            obd_connected: false,
-            has_fix: false,
-            speeding: false,
-            on_road: false,
-            map_version: '1.0.0.0.2',
-            timestamp: null,
-        };
+    <aside class="space-y-6">
+        <!-- Map Version Info -->
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Map version</h3>
+            <p class="mt-3 text-2xl font-semibold text-white">{{ current_map_version }}</p>
+            {% if last_published_at %}
+            <p class="mt-2 text-xs text-slate-400">Published {{ last_published_at|date:'M j, Y H:i' }}</p>
+            {% endif %}
+        </div>
 
-        const state = { ...defaultState, history: [] };
-        const connectionBadge = document.getElementById('connectionBadge');
-        const speedValue = document.getElementById('speedValue');
-        const speedLimitValue = document.getElementById('speedLimitValue');
-        const roadValue = document.getElementById('roadValue');
-        const latValue = document.getElementById('latValue');
-        const lngValue = document.getElementById('lngValue');
-        const satValue = document.getElementById('satValue');
-        const hazardValue = document.getElementById('hazardValue');
-        const obdValue = document.getElementById('obdValue');
-        const gpsValue = document.getElementById('gpsValue');
-        const statusValue = document.getElementById('statusValue');
-        const versionValue = document.getElementById('versionValue');
-        const tableBody = document.getElementById('telemetryTableBody');
+        <!-- Quick Actions -->
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Quick actions</h3>
+            <div class="mt-4 flex flex-col gap-3">
+                <a href="{% url 'dashboard-roads' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Browse roads</a>
+                <a href="{% url 'dashboard-road-editor' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Open map editor</a>
+                <a href="{% url 'dashboard-devices' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">View devices</a>
+            </div>
+        </div>
 
-        function getSpeedClass() {
-            const limit = Number(state.speed_limit) || 0;
-            const speed = Number(state.speed) || 0;
-            if (limit <= 0) return 'speed-good';
-            const ratio = speed / limit;
-            if (ratio > 1.15) return 'speed-danger';
-            if (ratio >= 0.8) return 'speed-warning';
-            return 'speed-good';
-        }
-
-        function updateStatusUI() {
-            const limit = Number(state.speed_limit) || 0;
-            const speed = Number(state.speed) || 0;
-            speedValue.textContent = `${speed.toFixed(1)} km/h`;
-            speedValue.className = `value ${getSpeedClass()}`;
-            speedLimitValue.textContent = `${limit.toFixed(1)} km/h`;
-            roadValue.textContent = state.road_name || '--';
-            latValue.textContent = Number(state.latitude || 0).toFixed(6);
-            lngValue.textContent = Number(state.longitude || 0).toFixed(6);
-            satValue.textContent = state.satellites || 0;
-            hazardValue.textContent = state.hazard || 'None';
-            obdValue.textContent = state.obd_connected ? 'Connected' : 'Disconnected';
-            gpsValue.textContent = state.has_fix ? 'Fix locked' : 'No fix';
-            versionValue.textContent = state.map_version || '1.0.0.0.2';
-
-            let statusText = 'Waiting for data…';
-            if (state.speeding) {
-                statusText = 'Speeding';
-            } else if (!state.on_road) {
-                statusText = 'Off Road';
-            } else if (state.has_fix) {
-                statusText = 'OK';
-            }
-            statusValue.textContent = statusText;
-        }
-
-        function addHistoryEntry(item) {
-            const time = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : '—';
-            const speed = Number(item.speed || 0).toFixed(1);
-            const limit = Number(item.speed_limit || 0).toFixed(1);
-            const road = item.road_name || '--';
-            const statusText = item.speeding ? 'Speeding' : (item.on_road ? 'OK' : 'Off Road');
-            const statusClass = item.speeding ? 'speeding' : (item.on_road ? 'ok' : 'offroad');
-            const gpsClass = item.has_fix ? 'gps-on' : 'gps-off';
-            const gpsText = item.has_fix ? 'Fix' : 'No fix';
-            const hazard = item.hazard || 'None';
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${time}</td>
-                <td>${speed}</td>
-                <td>${limit}</td>
-                <td>${road}</td>
-                <td><span class="badge ${statusClass}">${statusText}</span></td>
-                <td>${hazard}</td>
-                <td><span class="badge ${gpsClass}">${gpsText}</span></td>
-            `;
-
-            tableBody.prepend(row);
-            while (tableBody.rows.length > 50) {
-                tableBody.deleteRow(tableBody.rows.length - 1);
-            }
-        }
-
-        function applyTelemetry(payload) {
-            const next = { ...state, ...payload };
-            state.speed = next.speed ?? state.speed;
-            state.speed_limit = next.speed_limit ?? state.speed_limit;
-            state.road_name = next.road_name ?? state.road_name;
-            state.latitude = next.latitude ?? state.latitude;
-            state.longitude = next.longitude ?? state.longitude;
-            state.satellites = next.satellites ?? state.satellites;
-            state.hazard = next.hazard ?? state.hazard;
-            state.obd_connected = next.obd_connected ?? state.obd_connected;
-            state.has_fix = next.has_fix ?? state.has_fix;
-            state.speeding = next.speeding ?? state.speeding;
-            state.on_road = next.on_road ?? state.on_road;
-            state.map_version = next.map_version ?? state.map_version;
-            state.timestamp = next.timestamp ?? state.timestamp;
-            updateStatusUI();
-            addHistoryEntry(state);
-        }
-
-        function setConnectionState(isConnected) {
-            connectionBadge.classList.toggle('disconnected', !isConnected);
-            connectionBadge.innerHTML = `${isConnected ? '<span class="dot"></span>LIVE' : '<span class="dot"></span>DISCONNECTED'}`;
-        }
-
-        let socket = null;
-        let reconnectTimer = null;
-        let pollingTimer = null;
-
-        function connectWebSocket() {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-            const wsUrl = `${wsProtocol}://${window.location.host}/ws/telemetry/`;
-            try {
-                socket = new WebSocket(wsUrl);
-                setConnectionState(true);
-
-                socket.onmessage = (event) => {
-                    const payload = JSON.parse(event.data);
-                    applyTelemetry(payload);
-                };
-
-                socket.onopen = () => {
-                    setConnectionState(true);
-                    if (pollingTimer) {
-                        clearInterval(pollingTimer);
-                        pollingTimer = null;
-                    }
-                };
-
-                socket.onclose = () => {
-                    setConnectionState(false);
-                    if (reconnectTimer) clearTimeout(reconnectTimer);
-                    reconnectTimer = setTimeout(connectWebSocket, 3000);
-                    pollTelemetry();
-                };
-
-                socket.onerror = () => {
-                    setConnectionState(false);
-                };
-            } catch (error) {
-                setConnectionState(false);
-                pollTelemetry();
-            }
-        }
-
-        async function pollTelemetry() {
-            if (pollingTimer) return;
-            pollingTimer = setInterval(async () => {
-                try {
-                    const response = await fetch('/api/telemetry/latest/');
-                    if (!response.ok) return;
-                    const data = await response.json();
-                    if (Array.isArray(data) && data.length) {
-                        const latest = data[0];
-                        applyTelemetry(latest);
-                    }
-                } catch (error) {
-                    console.warn('Polling telemetry failed', error);
-                }
-            }, 10000);
-        }
-
-        async function loadLatestTelemetry() {
-            try {
-                const response = await fetch('/api/telemetry/latest/');
-                if (!response.ok) return;
-                const data = await response.json();
-                if (Array.isArray(data)) {
-                    data.slice(0, 50).forEach((entry) => addHistoryEntry(entry));
-                    if (data[0]) {
-                        applyTelemetry(data[0]);
-                    }
-                }
-            } catch (error) {
-                console.warn('Initial telemetry load failed', error);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            updateStatusUI();
-            loadLatestTelemetry();
-            connectWebSocket();
-        });
-    </script>
-</body>
-</html>
+        <!-- Stats Summary -->
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.25em] text-slate-400">Summary</h3>
+            <div class="mt-4 space-y-3 text-sm text-slate-300">
+                <p><strong>Roads:</strong> {{ road_count }}</p>
+                <p><strong>Hazards:</strong> {{ hazard_count }}</p>
+                <p><strong>Violations:</strong> {{ violation_count }}</p>
+                <p><strong>Devices:</strong> {{ device_count }}</p>
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
