@@ -33,6 +33,7 @@ from .services import (
     ensure_initial_map_version,
     generate_map_files,
     publish_map_update,
+    determine_severity,
 )
 from backend.asgi import websocket_manager
 from pathlib import Path
@@ -155,6 +156,7 @@ class RoadDetailAPIView(APIView):
         
         return Response(RoadSerializer(road).data)
 
+    @transaction.atomic
     def delete(self, request, road_id):
         road = get_object_or_404(Road, pk=road_id)
         road.delete()
@@ -186,6 +188,7 @@ class HazardListCreateAPIView(APIView):
         hazards = Hazard.objects.select_related('road').all()
         return Response({'hazards': HazardSerializer(hazards, many=True).data})
 
+    @transaction.atomic
     def post(self, request):
         serializer = HazardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -195,6 +198,7 @@ class HazardListCreateAPIView(APIView):
 
 
 class HazardDetailAPIView(APIView):
+    @transaction.atomic
     def patch(self, request, pk):
         hazard = get_object_or_404(Hazard, pk=pk)
         serializer = HazardSerializer(hazard, data=request.data, partial=True)
@@ -206,6 +210,7 @@ class HazardDetailAPIView(APIView):
         
         return Response(HazardSerializer(hazard).data)
 
+    @transaction.atomic
     def delete(self, request, pk):
         hazard = get_object_or_404(Hazard, pk=pk)
         hazard.delete()
@@ -331,6 +336,94 @@ def telemetry_upload(request):
     broadcast_payload['device_id'] = device.device_id
     _broadcast_telemetry(broadcast_payload)
     return Response({'status': 'ok', 'id': record.id, 'device_id': device.device_id}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+def batch_telemetry_upload(request):
+    try:
+        payload = request.data
+        records = payload.get('records') if isinstance(payload, dict) else payload
+        if not isinstance(records, list):
+            return Response({'error': 'Request body must be a JSON array or an object with a records array.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        saved_count = 0
+        violation_count = 0
+        error_count = 0
+        device_ids = []
+        synced_devices = {}
+
+        for item in records:
+            try:
+                if not isinstance(item, dict):
+                    raise ValueError('Each record must be an object.')
+                device_id = str(item.get('device_id', '')).strip()
+                if not device_id:
+                    error_count += 1
+                    continue
+
+                with transaction.atomic():
+                    device = _register_or_touch_device(item)
+                    if device is None:
+                        raise ValueError('device_id is required.')
+                    record_data = dict(item)
+                    record_data.pop('device_id', None)
+                    record_data.pop('device', None)
+                    record_data['offline_log'] = True
+                    serializer = TelemetrySerializer(data=record_data)
+                    serializer.is_valid(raise_exception=True)
+                    telemetry = serializer.save(device=device)
+                    speed = telemetry.speed
+                    speed_limit = telemetry.speed_limit
+                    if speed > 0 and speed_limit > 0 and speed > speed_limit:
+                        road = Road.objects.filter(name__iexact=telemetry.road_name).first() or Road.objects.first()
+                        if road is None:
+                            raise ValueError('A road is required to create a violation.')
+                        violation_telemetry = Telemetry.objects.create(
+                            device=device,
+                            road=road,
+                            speed=speed,
+                            latitude=telemetry.latitude,
+                            longitude=telemetry.longitude,
+                        )
+                        Violation.objects.create(
+                            device=device,
+                            telemetry=violation_telemetry,
+                            violation_type=Violation.VIOLATION_SPEEDING,
+                            speed=speed,
+                            speed_limit=speed_limit,
+                            latitude=telemetry.latitude,
+                            longitude=telemetry.longitude,
+                            severity=determine_severity(Decimal(str(speed)), Decimal(str(speed_limit))),
+                        )
+                        violation_count += 1
+                    device.last_seen = timezone.now()
+                    device.save(update_fields=['last_seen'])
+
+                saved_count += 1
+                synced_devices[device.device_id] = synced_devices.get(device.device_id, 0) + 1
+                if device.device_id not in device_ids:
+                    device_ids.append(device.device_id)
+            except Exception:
+                error_count += 1
+
+        summary_device_id = device_ids[0] if len(device_ids) == 1 else ('multiple' if device_ids else '')
+        _broadcast_telemetry({
+            'type': 'offline_sync',
+            'device_id': summary_device_id,
+            'record_count': saved_count,
+            'violations': violation_count,
+            'synced_at': timezone.now().isoformat(),
+        })
+        return Response({
+            'status': 'ok',
+            'received': len(records),
+            'saved': saved_count,
+            'violations': violation_count,
+            'errors': error_count,
+            'device_id': summary_device_id,
+        }, status=status.HTTP_201_CREATED)
+    except Exception as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class MapCheckUpdateAPIView(APIView):

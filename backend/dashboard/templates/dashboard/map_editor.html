@@ -6,57 +6,58 @@
   <title>Kitwe Map Editor — CBU Smart Road Speed Monitoring</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     :root{
-      --bg-void:#05070d;
-      --panel:#0c1220;
-      --panel-2:#131b2c;
-      --line: rgba(148,163,184,0.10);
-      --accent:#7dd3fc;
-      --accent-2:#5eead4;
+      --bg-void:#081d26;
+      --panel:#0e1f26;
+      --panel-2:#11232a;
+      --line: rgba(220,234,235,0.14);
+      --accent:#d0e7f6;
+      --accent-2:#91c0b4;
       --success:#34d399;
       --warning:#f59e0b;
       --danger:#f43f5e;
-      --text-hi:#e8edf7;
-      --text-lo:#8b95ab;
+      --text-hi:#edf7f9;
+      --text-lo:rgba(237,247,249,0.62);
     }
 
     body {
-      background: linear-gradient(180deg, rgba(6, 12, 18, 0.88), rgba(8, 13, 20, 0.96));
+      background: linear-gradient(180deg, rgba(10, 30, 36, 0.88), rgba(9, 23, 30, 0.96));
     }
     html,body,#map { height:100%; width:100%; margin:0; background:var(--bg-void); }
     body { overscroll-behavior:none; font-family:'Inter',ui-sans-serif,system-ui,sans-serif; color:var(--text-hi); }
-    h1,h2,h3,h4,.display-font{ font-family:'Space Grotesk','Inter',sans-serif; letter-spacing:-0.01em; }
+    h1,h2,h3,h4,.display-font{ font-family:'Fraunces','Inter',serif; letter-spacing:-0.01em; }
     .mono{ font-family:'JetBrains Mono',ui-monospace,monospace; }
     .app{ position:fixed; inset:0; display:flex; }
     .leaflet-container{ background:var(--bg-void); font-family:'Inter',sans-serif; }
 
     .map-rail {
       position: fixed;
-      right: 18px;
-      top: 50%;
-      transform: translateY(-50%);
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
       z-index: 930;
-      width: 60px;
+      width: min(78vw, 420px);
       background: rgba(8, 22, 28, 0.72);
       border: 1px solid var(--line);
       border-radius: 22px;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      justify-content: center;
       align-items: center;
       gap: 10px;
-      padding: 12px 10px;
+      padding: 10px 12px;
       backdrop-filter: blur(14px);
       box-shadow: 0 18px 40px rgba(5, 14, 18, 0.22);
     }
 
     .map-rail .rail-btn {
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       border-radius: 14px;
       border: 1px solid var(--line);
       background: rgba(255,255,255,0.03);
@@ -88,7 +89,7 @@
     .drawer::-webkit-scrollbar{ width:6px; }
     .drawer::-webkit-scrollbar-thumb{ background:rgba(148,163,184,0.18); border-radius:99px; }
 
-    .card{ background:var(--panel-2); border:1px solid var(--line); border-radius:16px; }
+    .card{ background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:16px; }
     .field{
       width:100%; padding:.6rem .75rem; background:rgba(2,6,23,0.5); border:1px solid rgba(148,163,184,0.14);
       border-radius:12px; color:var(--text-hi); font-size:.875rem; outline:none; transition:border-color .15s;
@@ -318,10 +319,17 @@
               <div>
                 <label class="label">Hazard type</label>
                 <select id="hazardType" class="field mt-1.5">
-                  <option value="school">School zone</option>
-                  <option value="bump">Speed bump</option>
-                  <option value="curve">Sharp curve</option>
-                  <option value="construction">Construction zone</option>
+                  <option value="School Zone">School zone</option>
+                  <option value="Speed Bump">Speed bump</option>
+                  <option value="Sharp Curve">Sharp curve</option>
+                  <option value="Railway Crossing">Railway crossing</option>
+                  <option value="Construction Zone">Construction zone</option>
+                </select>
+              </div>
+              <div>
+                <label class="label">Road</label>
+                <select id="hazardRoad" class="field mt-1.5">
+                  <option value="">Select a road</option>
                 </select>
               </div>
               <div>
@@ -329,7 +337,7 @@
                 <input id="hazardRadius" type="number" value="50" class="field mt-1.5 mono" />
               </div>
             </div>
-            <button id="clearHazards" class="btn btn-ghost w-full">Clear placed hazards (local)</button>
+            <button id="clearHazards" class="btn btn-ghost w-full">Delete all hazards</button>
           </div>
         </div>
       </div>
@@ -452,14 +460,14 @@
       });
       L.control.zoom({ position:'bottomright' }).addTo(map);
 
-      const streetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors, &copy; CARTO', maxZoom: 19
+      const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
       });
       const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri', maxZoom: 19
       });
       streetLayer.addTo(map);
-      L.control.layers({ 'Street (dark)': streetLayer, 'Satellite': satelliteLayer }, {}, { position:'topright' }).addTo(map);
+      L.control.layers({ 'Street map': streetLayer, 'Satellite': satelliteLayer }, {}, { position:'topright' }).addTo(map);
 
       roadsLayer = L.layerGroup().addTo(map);
       hazardsLayer = L.layerGroup().addTo(map);
@@ -515,9 +523,11 @@
           const convertedNodes = r.nodes.map(n => [parseFloat(n.latitude), parseFloat(n.longitude)]);
           addRoadToMap({...r, speed: r.speed_limit, nodes: convertedNodes, rawNodes: r.nodes}, false);
         });
+        const roadSelect = document.getElementById('hazardRoad');
+        roadsList.forEach(r => roadSelect.appendChild(new Option(r.name, r.id)));
       }catch(err){
-        console.warn('Could not load roads from API, using local sample', err);
-        addRoadToMap({id:'local-1', name:'Sample Road A', speed:50, nodes:[[-12.805,28.21],[-12.802,28.215],[-12.8,28.22]]}, false);
+        console.warn('Could not load roads from API', err);
+        showToast('Could not load roads from the server', true);
       }
       document.getElementById('statRoads').textContent = roads.length;
     }
@@ -542,6 +552,7 @@
 
     function onRoadClick(poly){
       selectedRoad = poly;
+      document.getElementById('hazardRoad').value = poly.roadId;
       document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='road_info'));
       setMode('road_info');
       populateRoadInfo(poly.roadData);
@@ -595,6 +606,24 @@
       const marker = L.circle([lat,lng], {radius, color:'#fb923c', fillOpacity:0.15}).addTo(hazardsLayer);
       marker.bindTooltip(h.hazard_type || 'Hazard');
       marker.hazardData = h;
+      marker.on('click', async (event)=>{
+        L.DomEvent.stopPropagation(event);
+        if(!marker.hazardData.id){
+          hazardsLayer.removeLayer(marker);
+          hazardsList = hazardsList.filter(item=>item !== marker);
+          document.getElementById('statHazards').textContent = hazardsList.length;
+          return;
+        }
+        const ok = await askConfirm('Delete hazard?', (h.hazard_type || 'This hazard')+' will be removed from the map.');
+        if(!ok) return;
+        try{
+          await apiFetch('/api/hazards/'+marker.hazardData.id+'/', {method:'DELETE'});
+          hazardsLayer.removeLayer(marker);
+          hazardsList = hazardsList.filter(item=>item !== marker);
+          document.getElementById('statHazards').textContent = hazardsList.length;
+          showToast('Hazard deleted');
+        }catch(err){ showToast('Hazard delete failed', true); }
+      });
       hazardsList.push(marker);
       document.getElementById('statHazards').textContent = hazardsList.length;
     }
@@ -617,15 +646,12 @@
       } else if(mode === 'hazard'){
         const t = document.getElementById('hazardType').value;
         const r = Number(document.getElementById('hazardRadius').value) || 50;
-        const payload = {hazard_type:t, latitude:e.latlng.lat, longitude:e.latlng.lng, warning_distance:r, road: roads.length>0 ? roads[0].roadId : null};
-        addHazardToMap(payload);
-        if(payload.road){
-          apiFetch('/api/hazards/', {method:'POST', body:JSON.stringify(payload)})
-            .then(()=>showToast('Hazard saved'))
-            .catch(()=>showToast('Hazard save failed', true));
-        } else {
-          showToast('Hazard placed locally (no road to attach to yet)', true);
-        }
+        const roadId = Number(document.getElementById('hazardRoad').value);
+        if(!roadId) return showToast('Select a road before placing a hazard', true);
+        const payload = {hazard_type:t, latitude:e.latlng.lat, longitude:e.latlng.lng, warning_distance:r, road:roadId};
+        apiFetch('/api/hazards/', {method:'POST', body:JSON.stringify(payload)})
+          .then(saved=>{ addHazardToMap(saved); showToast('Hazard saved'); })
+          .catch(()=>showToast('Hazard save failed', true));
       }
     }
     function onMapRightClick(e){
@@ -654,24 +680,31 @@
       finishRoadCreation();
     });
 
-    function finishRoadCreation(){
+    async function finishRoadCreation(){
       creating = false;
       currentDraft.name = document.getElementById('roadName').value || 'Unnamed road';
       currentDraft.speed = Number(document.getElementById('roadSpeed').value) || 50;
       if(currentDraft.nodes.length < 2) return showToast('Need at least two points', true);
-      const newRoad = {id:'local-'+Date.now(), name:currentDraft.name, speed:currentDraft.speed, nodes:currentDraft.nodes};
+      const apiPayload = { name:currentDraft.name, speed_limit:currentDraft.speed, nodes:currentDraft.nodes.map(n=>({latitude:n[0], longitude:n[1]})) };
+      let saved;
+      try {
+        saved = await apiFetch('/api/roads/', {method:'POST', body:JSON.stringify(apiPayload)});
+      } catch(err) {
+        showToast('Road save failed — check the form and API', true);
+        return;
+      }
+      const newRoad = {id:saved.id, roadId:saved.id, name:saved.name, speed:saved.speed_limit, speed_limit:saved.speed_limit, nodes:saved.nodes.map(n=>[Number(n.latitude), Number(n.longitude)])};
       addRoadToMap(newRoad, true);
       if(drawnTemp){ map.removeLayer(drawnTemp); drawnTemp = null; }
       document.getElementById('cancelCreate').disabled = true;
       document.getElementById('saveDraft').disabled = true;
       document.getElementById('statRoads').textContent = roads.length;
-
-      const apiPayload = { name:currentDraft.name, speed_limit:currentDraft.speed, nodes:currentDraft.nodes.map(n=>({latitude:n[0], longitude:n[1]})) };
-      apiFetch('/api/roads/', {method:'POST', body:JSON.stringify(apiPayload)})
-        .then(saved=>{ const last = roads[roads.length-1]; if(last && saved) last.roadId = saved.id; showToast('Road saved to backend'); })
-        .catch(()=>showToast('Saved locally — backend save failed', true));
-
+      const roadSelect = document.getElementById('hazardRoad');
+      roadSelect.options.length = 1;
+      roadSelect.appendChild(new Option(saved.name, saved.id));
+      roadSelect.value = saved.id;
       const r = roads[roads.length-1]; selectedRoad = r;
+      showToast('Road saved');
       document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='road_info'));
       setMode('road_info'); populateRoadInfo(newRoad); updateRoadStyles(); drawEditableNodes(r);
     }
@@ -732,13 +765,26 @@
       if(!selectedRoad) return;
       const ok = await askConfirm('Delete this road?', (selectedRoad.roadData.name||'This road')+' will be removed from the map and backend.');
       if(!ok) return;
-      roadsLayer.removeLayer(selectedRoad);
+      const roadToDelete = selectedRoad;
+      try {
+        await apiFetch('/api/roads/'+(roadToDelete.roadId||roadToDelete.roadData.id), {method:'DELETE'});
+      } catch(err) {
+        showToast('Road delete failed', true);
+        return;
+      }
+      roadsLayer.removeLayer(roadToDelete);
       nodesLayer.clearLayers();
-      roads = roads.filter(r=>r!==selectedRoad);
+      roads = roads.filter(r=>r!==roadToDelete);
+      hazardsList = hazardsList.filter(marker=>{
+        if(marker.hazardData.road === roadToDelete.roadId){
+          hazardsLayer.removeLayer(marker);
+          return false;
+        }
+        return true;
+      });
       document.getElementById('statRoads').textContent = roads.length;
-      apiFetch('/api/roads/'+(selectedRoad.roadId||selectedRoad.roadData.id), {method:'DELETE'})
-        .then(()=>showToast('Road deleted'))
-        .catch(()=>showToast('Removed locally — backend delete failed', true));
+      document.getElementById('statHazards').textContent = hazardsList.length;
+      showToast('Road deleted');
       selectedRoad = null;
       document.querySelectorAll('.seg-btn').forEach(x=>x.classList.toggle('active', x.dataset.mode==='view'));
       setMode('view');
@@ -777,11 +823,20 @@
 
     // ---------- hazard panel ----------
     document.getElementById('clearHazards').addEventListener('click', async ()=>{
-      const ok = await askConfirm('Clear local hazards?', 'This only clears markers shown here — not the backend.');
+      if(!hazardsList.length) return showToast('No hazards to delete');
+      const ok = await askConfirm('Delete all hazards?', 'Every hazard currently shown will be removed from the backend.');
       if(!ok) return;
-      hazardsLayer.clearLayers(); hazardsList = [];
-      document.getElementById('statHazards').textContent = 0;
-      showToast('Local hazards cleared');
+      try {
+        await Promise.all(hazardsList.filter(marker=>marker.hazardData.id).map(marker=>
+          apiFetch('/api/hazards/'+marker.hazardData.id+'/', {method:'DELETE'})
+        ));
+        hazardsLayer.clearLayers(); hazardsList = [];
+        document.getElementById('statHazards').textContent = 0;
+        showToast('Hazards deleted');
+      } catch(err) {
+        await loadHazards();
+        showToast('Some hazards could not be deleted', true);
+      }
     });
 
     document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadRoads(); loadHazards(); showToast('Reloaded'); });

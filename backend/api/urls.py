@@ -15,6 +15,7 @@ urlpatterns = [
     path('devices/<str:device_id>/history/', views.DeviceHistoryAPIView.as_view(), name='device-history'),
     path('devices/<str:device_id>/telemetry/', views.device_telemetry_history, name='device-telemetry-history'),
     path('telemetry/upload/', views.telemetry_upload, name='telemetry-upload'),
+    path('telemetry/batch-upload/', views.batch_telemetry_upload, name='telemetry-batch-upload'),
     path('telemetry/latest/', views.telemetry_latest, name='telemetry-latest'),
     path('violations/', views.ViolationListAPIView.as_view(), name='violation-list'),
     path('map-versions/', views.MapVersionListAPIView.as_view(), name='map-version-list'),

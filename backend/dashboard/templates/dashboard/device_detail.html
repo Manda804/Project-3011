@@ -9,7 +9,7 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-white">{{ device.device_name|default:device.device_id }}</h2>
-                    <p class="mt-1 text-sm text-slate-400">Latest upload at {% if latest %}{{ latest.uploaded_at|date:'M j, Y H:i' }}{% else %}no telemetry yet{% endif %}.</p>
+                    <p id="device-name" class="mt-1 text-sm text-slate-400">Latest upload at {% if latest %}{{ latest.timestamp|date:'M j, Y H:i' }}{% else %}no telemetry yet{% endif %}.</p>
                 </div>
                 <a href="{% url 'dashboard-devices' %}" class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">Back to devices</a>
             </div>
@@ -27,6 +27,32 @@
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-base font-semibold text-white">Telemetry history</h3>
             <canvas id="device-history-chart" class="mt-4 h-80 w-full"></canvas>
+            <div class="mt-6 overflow-x-auto">
+                <table class="w-full border-collapse text-left text-sm text-slate-200">
+                    <thead class="bg-slate-900/95 text-slate-400">
+                        <tr>
+                            <th class="border-b border-slate-800 px-4 py-3">Time</th>
+                            <th class="border-b border-slate-800 px-4 py-3">Speed</th>
+                            <th class="border-b border-slate-800 px-4 py-3">Road</th>
+                            <th class="border-b border-slate-800 px-4 py-3">Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in history %}
+                        <tr class="border-b border-slate-800">
+                            <td class="px-4 py-3">{{ record.timestamp|date:'M j, Y H:i:s' }}</td>
+                            <td class="px-4 py-3">{{ record.speed }} km/h</td>
+                            <td class="px-4 py-3">{{ record.road_name|default:'—' }}</td>
+                            <td class="px-4 py-3">
+                                {% if record.offline_log %}<span class="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-300">Offline Log</span>{% else %}<span class="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300">Live</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="px-4 py-5 text-center text-slate-400">No telemetry records available.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         <div class="rounded-3xl border border-slate-800 bg-slate-950/90 p-6 shadow-lg shadow-slate-950/10">
             <h3 class="text-base font-semibold text-white">Live location</h3>
@@ -116,8 +142,28 @@
     }).addTo(locationMap);
     let locationMarker = null;
 
+    const syncToast = document.createElement('div');
+    syncToast.className = 'pointer-events-none fixed right-5 top-5 z-[80] rounded-2xl border border-cyan-400/40 bg-cyan-950/95 px-5 py-3 text-sm text-cyan-100 opacity-0 shadow-xl transition-opacity duration-300';
+    document.body.appendChild(syncToast);
+    function showOfflineSync(payload) {
+        syncToast.textContent = `Offline sync complete — ${payload.record_count} records uploaded from ${payload.device_id}`;
+        syncToast.classList.remove('opacity-0');
+        window.setTimeout(() => syncToast.classList.add('opacity-0'), 5000);
+    }
+
+    const socketProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const telemetrySocket = new WebSocket(`${socketProtocol}://${window.location.host}/ws/telemetry/`);
+    telemetrySocket.addEventListener('message', (event) => {
+        try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'offline_sync' && (payload.device_id === deviceId || payload.device_id === 'multiple')) showOfflineSync(payload);
+        } catch (error) {
+            // Ignore malformed broadcast messages.
+        }
+    });
+
     function hasValidLocation(telemetry) {
-        return telemetry && telemetry.has_fix && Number(telemetry.latitude) !== 0 && Number(telemetry.longitude) !== 0;
+        return telemetry && Number(telemetry.latitude) !== 0 && Number(telemetry.longitude) !== 0;
     }
 
     function updateLocation(telemetry, deviceName) {
@@ -130,7 +176,7 @@
         document.getElementById('location-message').textContent = 'Last valid GPS location shown on the map.';
     }
 
-    if (initialLocation) updateLocation({ ...initialLocation, has_fix: true }, document.getElementById('device-name').textContent);
+    if (initialLocation) updateLocation(initialLocation, '{{ device.device_name|default:device.device_id|escapejs }}');
 
     function statusFromLastSeen(lastSeen) {
         if (!lastSeen) return 'offline';
@@ -147,7 +193,6 @@
             if (!deviceResponse.ok) return;
             const deviceData = await deviceResponse.json();
             const deviceName = deviceData.device_name || deviceData.device_id;
-            document.getElementById('device-name').textContent = deviceName;
             document.getElementById('device-status').textContent = statusFromLastSeen(deviceData.last_seen);
 
             if (!telemetryResponse.ok) return;
@@ -155,7 +200,6 @@
             document.getElementById('map-version').textContent = telemetry.map_version || deviceData.current_map_version?.version || 'N/A';
             document.getElementById('current-road').textContent = telemetry.road_name || 'Not matched to a road';
             document.getElementById('current-speed').textContent = telemetry.speed ?? '—';
-            document.getElementById('latest-upload').textContent = `Latest upload ${new Date(telemetry.timestamp).toLocaleString()}`;
             updateLocation(telemetry, deviceName);
         } catch (error) {
             // Keep the last known values visible while the device or network reconnects.

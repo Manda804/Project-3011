@@ -159,6 +159,7 @@ class TelemetryRecord(models.Model):
     hazard = models.CharField(max_length=32, blank=True)
     speeding = models.BooleanField(default=False)
     on_road = models.BooleanField(default=False)
+    offline_log = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

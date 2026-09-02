@@ -1,6 +1,7 @@
 import json
 
 from django.db.models import Count
+from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
@@ -73,7 +74,7 @@ TEAM_MEMBERS = [
         'slug': 'emmanuel',
         'name': 'Emmanuel',
         'role': 'Project Sponsor',
-        'photo': 'logo.jpg',
+        'photo': 'd.jpeg',
         'summary': 'Provided strategic support and funding that enabled the project to move from concept into a working solution.',
         'contribution': 'Emmanuel backed the project financially and provided the leadership support needed to keep the development effort focused on delivering a useful road monitoring system for real-world use.',
         'focus': ['Funding', 'Project sponsorship', 'Strategic support'],
@@ -204,6 +205,7 @@ def devices_view(request):
             'last_seen': device.last_seen,
             'status': status,
             'current_map_version': device.current_map_version.version if device.current_map_version else None,
+            'offline_log_count': TelemetryRecord.objects.filter(device=device, offline_log=True).count(),
         })
 
     if query:
@@ -225,7 +227,7 @@ def device_detail_view(request, device_id):
     latest = telemetry.first()
     # Keep the last usable GPS position on screen when a newer upload is still
     # waiting for a GPS fix and therefore contains 0, 0 coordinates.
-    latest_location = telemetry.filter(has_fix=True).exclude(latitude=0).exclude(longitude=0).first()
+    latest_location = telemetry.exclude(latitude=0).exclude(longitude=0).first()
     latest_version = telemetry.exclude(map_version='').first()
     history = telemetry[:100]
     violations = Violation.objects.filter(device=device).order_by('-created_at')[:50]
@@ -254,8 +256,8 @@ def device_detail_view(request, device_id):
         ]),
         'latest_location_json': json.dumps(
             {
-                'latitude': latest_location.latitude,
-                'longitude': latest_location.longitude,
+                'latitude': float(latest_location.latitude),
+                'longitude': float(latest_location.longitude),
             }
             if latest_location else None
         ),

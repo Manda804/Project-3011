@@ -12,7 +12,7 @@ class TelemetrySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TelemetryRecord
-        fields = ['id', 'device', 'device_id', 'speed', 'road_name', 'speed_limit', 'latitude', 'longitude', 'map_version', 'has_fix', 'satellites', 'obd_connected', 'hazard', 'speeding', 'on_road', 'timestamp']
+        fields = ['id', 'device', 'device_id', 'speed', 'road_name', 'speed_limit', 'latitude', 'longitude', 'map_version', 'has_fix', 'satellites', 'obd_connected', 'hazard', 'speeding', 'on_road', 'offline_log', 'timestamp']
         read_only_fields = ['id', 'device_id', 'timestamp']
 
     def get_device_id(self, obj):
