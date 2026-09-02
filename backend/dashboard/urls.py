@@ -10,12 +10,16 @@ from .views import (
     landing_view,
     road_editor_view,
     roads_view,
+    team_member_view,
+    team_overview_view,
     versions_view,
     violations_view,
 )
 
 urlpatterns = [
     path('', landing_view, name='dashboard'),
+    path('team/', team_overview_view, name='team-overview'),
+    path('team/<slug:member_slug>/', team_member_view, name='team-member'),
     path('overview/', dashboard_home, name='dashboard-home'),
     path('roads/', roads_view, name='dashboard-roads'),
     path('road-editor/', road_editor_view, name='dashboard-road-editor'),

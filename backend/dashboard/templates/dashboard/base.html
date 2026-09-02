@@ -6,125 +6,539 @@
     <title>{% block title %}Dashboard{% endblock %} | Kitwe GIS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root{
-            --accent: #3b82f6;
-            --accent-2: #22d3ee;
+        :root {
+            --bg-deep: #091d26;
+            --bg-mid: #0c2a36;
+            --panel: rgba(17, 35, 42, 0.72);
+            --panel-solid: rgba(14, 31, 38, 0.92);
+            --panel-soft: rgba(255, 255, 255, 0.08);
+            --card: rgba(255, 255, 255, 0.06);
+            --line: rgba(220, 234, 235, 0.14);
+            --text: #edf7f9;
+            --muted: rgba(237,247,249,0.7);
+            --muted-2: rgba(237,247,249,0.55);
+            --gold: #d7c59f;
+            --mint: #91c0b4;
+            --sky: #d0e7f6;
+            --shadow: rgba(5, 14, 18, 0.42);
         }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
         body {
-            background: #020617;
-            color: #f8fafc;
-            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top, rgba(160, 203, 212, 0.15), transparent 22%),
+                linear-gradient(180deg, #90afb6 0%, #6a8088 20%, #1d3b46 42%, #081d26 100%);
+            overflow-x: hidden;
         }
-        h1, h2, h3, h4, .display-font { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
-        .mono-font, .font-mono-data { font-family: 'JetBrains Mono', ui-monospace, monospace; }
-        .gradient-layer {
+
+        .weather-glow {
             position: fixed;
             inset: 0;
+            background:
+                radial-gradient(circle at 18% 20%, rgba(255,255,255,0.16), transparent 18%),
+                radial-gradient(circle at 70% 25%, rgba(255,255,255,0.10), transparent 12%),
+                radial-gradient(circle at 50% 88%, rgba(123, 170, 176, 0.18), transparent 22%);
             pointer-events: none;
-            background: radial-gradient(circle at top left, rgba(59,130,246,0.16), transparent 24%),
-                        radial-gradient(circle at 20% 30%, rgba(16,185,129,0.10), transparent 20%);
-            z-index: 0;
         }
-        .sidebar a { color: #94a3b8; }
-        .sidebar a:hover { background: rgba(148,163,184,0.06); color: #e2e8f0; }
-        .sidebar a.active {
-            background: rgba(56,189,248,0.14);
-            color: #e0f2fe;
-            box-shadow: inset 2px 0 0 var(--accent-2);
+
+        .app-shell {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            min-height: 100vh;
+            margin: 0;
+            border-radius: 0;
+            overflow: hidden;
+            border: none;
+            background: linear-gradient(180deg, rgba(10, 30, 36, 0.88), rgba(9, 23, 30, 0.88));
+            box-shadow: none;
+            display: block;
         }
-        .leaflet-container {
-            background: #020617;
+
+        .rail {
+            position: fixed;
+            left: 50%;
+            bottom: 18px;
+            transform: translateX(-50%);
+            z-index: 60;
+            width: min(78vw, 420px);
+            background: rgba(8, 22, 28, 0.7);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 12px;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 18px 40px rgba(5, 14, 18, 0.22);
+        }
+
+        .rail-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,0.03);
+            display: grid;
+            place-items: center;
+            color: rgba(237,247,249,0.8);
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+            text-decoration: none;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+
+        .rail-btn.active,
+        .rail-btn:hover {
+            background: rgba(255,255,255,0.09);
+            border-color: rgba(215,197,159,0.55);
+            color: var(--gold);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 18px rgba(12, 23, 29, 0.2);
+        }
+
+        .content-wrap {
+            position: relative;
+            background: linear-gradient(180deg, rgba(11,29,35,0.68), rgba(8,22,28,0.9));
+            padding: 28px 36px 120px;
+            min-height: 100vh;
+            margin-left: 0;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 34px;
+            gap: 16px;
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: rgba(255,255,255,0.85);
+        }
+
+        .mini-pill {
+            font-size: 0.68rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: rgba(237,247,249,0.75);
+        }
+
+        .brand-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.45rem 0.8rem;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.1rem;
+            flex-wrap: wrap;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .nav-links a {
+            opacity: 0.82;
+            transition: opacity 0.2s ease;
+        }
+
+        .nav-links a:hover { opacity: 1; }
+
+        .page-head {
+            display: grid;
+            grid-template-columns: 1.3fr 0.7fr;
+            gap: 24px;
+            align-items: end;
+        }
+
+        .eyebrow-bar {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.72rem;
+            letter-spacing: 0.32em;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 18px;
+        }
+
+        .eyebrow-bar::before {
+            content: "";
+            display: block;
+            width: 52px;
+            height: 1px;
+            background: rgba(215,197,159,0.8);
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Fraunces', serif;
+            letter-spacing: -0.04em;
+            margin: 0;
+        }
+
+        .hero-title {
+            font-size: clamp(2.7rem, 5vw, 5.2rem);
+            line-height: 0.94;
+            font-weight: 600;
+            margin: 0;
+            max-width: 620px;
+        }
+
+        .hero-sub {
+            margin-top: 18px;
+            max-width: 520px;
+            color: rgba(237,247,249,0.78);
+            line-height: 1.7;
+            font-size: 0.98rem;
+        }
+
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 28px;
+        }
+
+        .primary-btn,
+        .secondary-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 0.9rem 1.4rem;
+            font-size: 0.8rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+        }
+
+        .primary-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+        }
+
+        .secondary-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(237,247,249,0.82);
+        }
+
+        .primary-btn:hover,
+        .secondary-btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(215,197,159,0.7);
+        }
+
+        .glass-panel {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(10px);
+            border-radius: 26px;
+            box-shadow: 0 18px 36px rgba(9, 17, 22, 0.18);
+        }
+
+        .weather-card {
+            padding: 20px 18px 16px;
+            min-height: 260px;
+        }
+
+        .weather-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .loc {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(237,247,249,0.88);
+            font-size: 0.8rem;
+        }
+
+        .temperature {
+            font-size: clamp(2.8rem, 4vw, 5rem);
+            line-height: 0.9;
+            letter-spacing: -0.05em;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            margin: 12px 0 8px;
+        }
+
+        .weather-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: rgba(255,255,255,0.74);
+            font-size: 0.72rem;
+        }
+
+        .weather-mini {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.74);
+        }
+
+        .forecast-row {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(100px, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .day-card {
+            text-align: center;
+            padding: 14px 8px 10px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: rgba(237,247,249,0.78);
+            font-size: 0.76rem;
+        }
+
+        .day-card strong {
+            display: block;
+            margin-top: 12px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text);
             font-family: 'Inter', sans-serif;
         }
-        /* Mobile off-canvas sidebar */
-        @media (max-width: 1023px){
-            .sidebar {
-                position: fixed;
-                inset: 0 auto 0 0;
-                transform: translateX(-100%);
-                transition: transform 0.28s cubic-bezier(.2,.9,.35,1);
-                z-index: 60;
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .mini-stat {
+            padding: 14px 12px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--muted);
+        }
+
+        .mini-stat strong {
+            display: block;
+            font-size: 1.5rem;
+            margin-top: 8px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .content-surface {
+            margin-top: 36px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .feature-card {
+            padding: 22px 20px;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            background: rgba(10, 27, 34, 0.44);
+            border: 1px solid var(--line);
+            border-radius: 26px;
+        }
+
+        .feature-card h3 {
+            font-size: clamp(2rem, 3vw, 3rem);
+            line-height: 0.95;
+        }
+
+        .feature-card p {
+            margin-top: 12px;
+            color: rgba(237,247,249,0.74);
+            line-height: 1.7;
+            font-size: 0.96rem;
+        }
+
+        @media (max-width: 980px) {
+            .rail {
+                bottom: 12px;
+                width: min(94vw, 420px);
+                gap: 10px;
+                padding: 10px 12px;
             }
-            .sidebar.nav-open { transform: translateX(0); }
+            .rail-btn {
+                width: 42px;
+                height: 42px;
+            }
+            .page-head,
+            .content-surface {
+                grid-template-columns: 1fr;
+            }
+            .content-wrap {
+                padding: 22px 18px 110px;
+            }
         }
-        .nav-scrim {
-            position: fixed; inset: 0; background: rgba(2,6,23,0.7); backdrop-filter: blur(2px);
-            z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+
+        @media (max-width: 640px) {
+            .nav-links {
+                display: none;
+            }
+            .forecast-row {
+                grid-template-columns: repeat(2, minmax(120px, 1fr));
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
         }
-        .nav-scrim.show { opacity: 1; pointer-events: auto; }
-        .nav-toggle { display: none; }
-        @media (max-width: 1023px){ .nav-toggle { display: inline-flex; } }
+
+        body[data-page="dashboard"] .content-wrap .rounded-3xl,
+        body[data-page="dashboard"] .content-wrap .rounded-2xl,
+        body[data-page="dashboard"] .content-wrap table thead,
+        body[data-page="dashboard"] .content-wrap .bg-slate-950\/90,
+        body[data-page="dashboard"] .content-wrap .bg-slate-900,
+        body[data-page="dashboard"] .content-wrap .bg-slate-900\/95 {
+            background: rgba(13, 21, 28, 0.82) !important;
+            border-color: rgba(148, 163, 184, 0.18) !important;
+        }
+
+        body[data-page="map"] .content-wrap .rounded-3xl,
+        body[data-page="map"] .content-wrap .rounded-2xl,
+        body[data-page="map"] .content-wrap .bg-slate-950\/90,
+        body[data-page="map"] .content-wrap .bg-slate-900,
+        body[data-page="map"] .content-wrap table thead {
+            background: rgba(10, 18, 24, 0.82) !important;
+            border-color: rgba(94, 234, 212, 0.23) !important;
+        }
+
+        body[data-page="team"] .content-wrap .rounded-3xl,
+        body[data-page="team"] .content-wrap .rounded-2xl,
+        body[data-page="team"] .content-wrap .bg-slate-950\/90,
+        body[data-page="team"] .content-wrap .bg-slate-900 {
+            background: rgba(13, 15, 19, 0.72) !important;
+            border-color: rgba(213, 183, 125, 0.22) !important;
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body class="min-h-screen overflow-x-hidden">
-    <div class="gradient-layer"></div>
-    <div id="navScrim" class="nav-scrim"></div>
-    <div class="relative flex min-h-screen">
-        <aside id="sidebar" class="sidebar z-20 w-72 shrink-0 border-r border-slate-800 bg-slate-950/95 px-6 py-8 text-slate-200 backdrop-blur">
-            <div class="mb-8 flex items-center justify-between">
-                <a href="{% url 'dashboard-home' %}" class="inline-flex items-center gap-2.5 text-xl font-semibold text-white">
-                    <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.5-2V4L9 6m0 14l6-2m-6 2V6m6 12l5.5 2V8L15 6m0 14V6m0 0L9 4"/></svg>
-                    </span>
-                    Kitwe GIS
-                </a>
-                <button id="navClose" class="nav-toggle rounded-lg p-1.5 text-slate-400 hover:bg-slate-900 hover:text-white">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-            <p class="mb-8 text-sm text-slate-400">Road asset management, device monitoring and live violation analysis.</p>
-            <nav class="space-y-1 text-sm font-medium">
-                <a href="{% url 'dashboard-home' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'dashboard' %}active{% endif %}">Overview</a>
-                <a href="{% url 'dashboard-roads' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'roads' %}active{% endif %}">Roads</a>
-                <a href="{% url 'dashboard-road-editor' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'road_editor' %}active{% endif %}">Road Editor</a>
-                <a href="{% url 'dashboard-hazards' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'hazards' %}active{% endif %}">Hazards</a>
-                <a href="{% url 'dashboard-devices' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'devices' %}active{% endif %}">Devices</a>
-                <a href="{% url 'dashboard-violations' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'violations' %}active{% endif %}">Violations</a>
-                <a href="{% url 'dashboard-versions' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'versions' %}active{% endif %}">Versions</a>
-                <a href="{% url 'dashboard-analytics' %}" class="group flex items-center gap-3 rounded-2xl px-4 py-3 transition {% if page == 'analytics' %}active{% endif %}">Analytics</a>
-            </nav>
+    <div class="weather-glow"></div>
+    <div id="navScrim" class="nav-scrim" style="display:none; position:fixed; inset:0; background:rgba(3,10,13,0.6); z-index:50;"></div>
+    <div class="app-shell">
+        <aside class="rail" id="sidebar">
+            {% with current_path=request.path %}
+                {% if current_path == '/' or current_path|slice:':6' == '/team/' %}
+                    <a href="/" class="rail-btn active" aria-label="Home">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5 12 4l8 8.5"/><path d="M6 10.5V20h12v-9.5"/></svg>
+                    </a>
+                    <a href="/team/" class="rail-btn" aria-label="Team">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                    </a>
+                    <a href="/#platform" class="rail-btn" aria-label="About">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="8"/></svg>
+                    </a>
+                {% else %}
+                    <a href="/overview/" class="rail-btn {% if current_path == '/overview/' %}active{% endif %}" aria-label="Overview">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5 12 4l8 8.5"/><path d="M6 10.5V20h12v-9.5"/></svg>
+                    </a>
+                    <a href="/road-editor/" class="rail-btn {% if current_path == '/road-editor/' %}active{% endif %}" aria-label="Map editor">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 18.5 9 15l6 3 5.5-3v-12L15 6l-6-3-5.5 3v12Z"/><path d="M9 15V3M15 18V6"/></svg>
+                    </a>
+                    <a href="/devices/" class="rail-btn {% if current_path == '/devices/' %}active{% endif %}" aria-label="Devices">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v7M8 6h8M7 10h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z"/></svg>
+                    </a>
+                    <a href="/versions/" class="rail-btn {% if current_path == '/versions/' %}active{% endif %}" aria-label="Versions">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16M7 4v8m10-8v8M6 16h12l-1 4H7l-1-4Z"/></svg>
+                    </a>
+                    <a href="/violations/" class="rail-btn {% if current_path == '/violations/' %}active{% endif %}" aria-label="Violations">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 22h20L12 2Z"/><path d="M12 9v4M12 17h.01"/></svg>
+                    </a>
+                    <a href="/roads/" class="rail-btn {% if current_path == '/roads/' %}active{% endif %}" aria-label="Roads">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18h18M5 18l2-12h10l2 12"/><path d="M8 18v-2h8v2"/></svg>
+                    </a>
+                    <a href="/hazards/" class="rail-btn {% if current_path == '/hazards/' %}active{% endif %}" aria-label="Hazards">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 22h20L12 2Z"/><path d="M12 8v5M12 17h.01"/></svg>
+                    </a>
+                {% endif %}
+            {% endwith %}
+            <div style="margin-top:auto;"></div>
+            <a href="/team/" class="rail-btn" aria-label="Profile">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+            </a>
         </aside>
-        <main class="relative flex-1 overflow-hidden">
-            <header class="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-5 py-5 backdrop-blur sm:px-8">
-                <div class="flex flex-wrap items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <button id="navOpen" class="nav-toggle rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-slate-300 hover:text-white">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-                        </button>
-                        <div>
-                            <h1 class="text-xl font-semibold text-white sm:text-2xl">{% block page_heading %}Dashboard{% endblock %}</h1>
-                            <p class="mt-1 text-sm text-slate-400">{% block page_description %}Manage roads, hazards, devices and analytics from one workspace.{% endblock %}</p>
-                        </div>
-                    </div>
-                    <div class="hidden items-center gap-3 text-sm text-slate-300 sm:inline-flex">
-                        <span class="rounded-full bg-slate-900 px-3 py-2">Dark theme</span>
-                        <span class="rounded-full bg-slate-900 px-3 py-2">Tailwind UI</span>
-                    </div>
+
+        <div class="content-wrap">
+            <header class="topbar">
+                <div class="brand-row">
+                    <div class="brand-badge">Smart Road Network</div>
                 </div>
+                <nav class="nav-links">
+                    <a href="/">Home</a>
+                    <a href="/team/">Team</a>
+                    <a href="/overview/">Dashboard</a>
+                    <a href="/roads/">Roads</a>
+                </nav>
             </header>
-            <section class="relative overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
-                {% block content %}{% endblock %}
-            </section>
-        </main>
+
+            <div class="page-head">
+                {% block page_content %}{% endblock %}
+            </div>
+
+            {% block content %}{% endblock %}
+        </div>
     </div>
+
     <script>
         (function(){
-            const sidebar = document.getElementById('sidebar');
-            const scrim = document.getElementById('navScrim');
-            const openBtn = document.getElementById('navOpen');
-            const closeBtn = document.getElementById('navClose');
-            function openNav(){ sidebar.classList.add('nav-open'); scrim.classList.add('show'); }
-            function closeNav(){ sidebar.classList.remove('nav-open'); scrim.classList.remove('show'); }
-            if(openBtn) openBtn.addEventListener('click', openNav);
-            if(closeBtn) closeBtn.addEventListener('click', closeNav);
-            if(scrim) scrim.addEventListener('click', closeNav);
+            const navScrim = document.getElementById('navScrim');
+            if (navScrim && window.innerWidth <= 980) {
+                navScrim.style.display = 'block';
+            }
+
+            const currentPath = window.location.pathname;
+            let pageMode = 'dashboard';
+            if (currentPath === '/' || currentPath.startsWith('/team/')) {
+                pageMode = 'team';
+            } else if (currentPath.includes('/road-editor') || currentPath.includes('/map') || currentPath.includes('/editor')) {
+                pageMode = 'map';
+            }
+            document.body.setAttribute('data-page', pageMode);
         })();
     </script>
     {% block extra_scripts %}{% endblock %}

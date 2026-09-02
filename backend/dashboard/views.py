@@ -41,8 +41,59 @@ def _serialize_road(road):
     }
 
 
+TEAM_MEMBERS = [
+    {
+        'slug': 'thomas-manda',
+        'name': 'Thomas Manda',
+        'role': 'Full-Stack & Firmware Developer',
+        'photo': 'a.jpg',
+        'summary': 'Built the live telemetry flow, Django services, and the device data pipeline that powers the road monitoring platform.',
+        'contribution': 'Thomas connected the in-vehicle sensors and backend systems into one working pipeline. He designed the API services, processed incoming telemetry, and ensured the dashboard always received up-to-date road and device data.',
+        'focus': ['Django APIs', 'Telemetry ingest', 'Device integration'],
+    },
+    {
+        'slug': 'wazingwa-mugala',
+        'name': 'Wazingwa Mugala',
+        'role': 'System Architect',
+        'photo': 'b.jpeg',
+        'summary': 'Shaped the overall architecture and kept the platform aligned with the project’s technical roadmap and system design.',
+        'contribution': 'Wazingwa led the system design decisions, mapped how each subsystem interacts, and made sure the platform remained scalable, maintainable, and practical for live road operations.',
+        'focus': ['System design', 'Architecture', 'Platform planning'],
+    },
+    {
+        'slug': 'faith',
+        'name': 'Faith',
+        'role': 'Project Funds Manager',
+        'photo': 'c.png',
+        'summary': 'Managed the project budget and coordinated financial planning so the team could deliver the platform effectively.',
+        'contribution': 'Faith organised and allocated project funds, tracked spending priorities, and made sure the team had the resources needed to build and test the smart road network solution.',
+        'focus': ['Budget planning', 'Resource allocation', 'Project support'],
+    },
+    {
+        'slug': 'emmanuel',
+        'name': 'Emmanuel',
+        'role': 'Project Sponsor',
+        'photo': 'logo.jpg',
+        'summary': 'Provided strategic support and funding that enabled the project to move from concept into a working solution.',
+        'contribution': 'Emmanuel backed the project financially and provided the leadership support needed to keep the development effort focused on delivering a useful road monitoring system for real-world use.',
+        'focus': ['Funding', 'Project sponsorship', 'Strategic support'],
+    },
+]
+
+
 def landing_view(request):
     return render(request, 'dashboard/landing.html')
+
+
+def team_overview_view(request):
+    return render(request, 'dashboard/team.html', {'members': TEAM_MEMBERS, 'selected_member': None})
+
+
+def team_member_view(request, member_slug):
+    member = next((person for person in TEAM_MEMBERS if person['slug'] == member_slug), None)
+    if member is None:
+        raise Http404('Team member not found.')
+    return render(request, 'dashboard/team.html', {'members': TEAM_MEMBERS, 'selected_member': member})
 
 
 def dashboard_home(request):
