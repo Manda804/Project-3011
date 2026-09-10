@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 
+DEFAULT_DASHBOARD_USERNAME = 'admin'
+DEFAULT_DASHBOARD_PASSWORD = 'KitweSmartRoads2026!'
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent
@@ -41,7 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'api',
-    'dashboard',
+    'dashboard.apps.DashboardConfig',
 ]
 
 MIDDLEWARE = [

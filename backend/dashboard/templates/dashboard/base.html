@@ -193,14 +193,6 @@
             margin-bottom: 18px;
         }
 
-        .eyebrow-bar::before {
-            content: "";
-            display: block;
-            width: 52px;
-            height: 1px;
-            background: rgba(215,197,159,0.8);
-        }
-
         h1, h2, h3, h4 {
             font-family: 'Fraunces', serif;
             letter-spacing: -0.04em;
@@ -513,6 +505,9 @@
                     <a href="/team/">Team</a>
                     <a href="/overview/">Dashboard</a>
                     <a href="/roads/">Roads</a>
+                    {% if user.is_authenticated %}
+                        <a href="/logout/">Logout</a>
+                    {% endif %}
                 </nav>
             </header>
 

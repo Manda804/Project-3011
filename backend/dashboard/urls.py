@@ -8,6 +8,8 @@ from .views import (
     hazards_view,
     index,
     landing_view,
+    login_page,
+    logout_page,
     road_editor_view,
     roads_view,
     team_member_view,
@@ -17,6 +19,8 @@ from .views import (
 )
 
 urlpatterns = [
+    path('login/', login_page, name='login'),
+    path('logout/', logout_page, name='logout'),
     path('', landing_view, name='dashboard'),
     path('team/', team_overview_view, name='team-overview'),
     path('team/<slug:member_slug>/', team_member_view, name='team-member'),

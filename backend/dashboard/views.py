@@ -1,8 +1,12 @@
 import json
 
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db.models import Count
 from django.http import Http404
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from api.models import Device, Hazard, MapVersion, Road, Telemetry, TelemetryRecord, Violation
@@ -10,6 +14,49 @@ from api.models import Device, Hazard, MapVersion, Road, Telemetry, TelemetryRec
 
 def index(request):
     return render(request, 'dashboard/index.html')
+
+
+def _ensure_default_dashboard_user():
+    User = get_user_model()
+    username = settings.DEFAULT_DASHBOARD_USERNAME
+    password = settings.DEFAULT_DASHBOARD_PASSWORD
+    user, _created = User.objects.get_or_create(username=username)
+    user.set_password(password)
+    user.is_staff = False
+    user.is_superuser = False
+    user.save(update_fields=['password', 'is_staff', 'is_superuser'])
+    return user
+
+
+def logout_page(request):
+    logout(request)
+    return redirect('login')
+
+
+def login_page(request):
+    _ensure_default_dashboard_user()
+
+    next_url = request.GET.get('next') or '/overview/'
+    if not request.user.is_authenticated and 'next' in request.GET:
+        messages.info(request, 'You need to sign in before opening the requested admin-only map editor.')
+
+    if request.method == 'POST':
+        username = (request.POST.get('username') or '').strip()
+        password = request.POST.get('password') or ''
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            destination = request.POST.get('next') or next_url
+            if not user.is_staff and not user.is_superuser:
+                messages.info(request, 'The map editor is restricted to admins only. Please sign in with an admin account.')
+            return redirect(destination if destination.startswith('/') else f'/{destination}')
+        messages.error(request, 'Invalid username or password.')
+
+    return render(request, 'dashboard/login.html', {
+        'default_username': settings.DEFAULT_DASHBOARD_USERNAME,
+        'default_password': settings.DEFAULT_DASHBOARD_PASSWORD,
+        'next_url': next_url,
+    })
 
 
 def _device_status(last_seen):
@@ -97,6 +144,7 @@ def team_member_view(request, member_slug):
     return render(request, 'dashboard/team.html', {'members': TEAM_MEMBERS, 'selected_member': member})
 
 
+@login_required(login_url='login')
 def dashboard_home(request):
     roads_count = Road.objects.count()
     hazards_count = Hazard.objects.count()
@@ -138,6 +186,7 @@ def dashboard_home(request):
     })
 
 
+@login_required(login_url='login')
 def roads_view(request):
     query = request.GET.get('q', '').strip()
     min_speed = request.GET.get('min_speed', '').strip()
@@ -160,10 +209,14 @@ def roads_view(request):
     })
 
 
+@login_required(login_url='login')
+@login_required(login_url='login')
+@user_passes_test(lambda user: user.is_staff or user.is_superuser, login_url='login')
 def road_editor_view(request):
     return render(request, 'dashboard/map_editor.html')
 
 
+@login_required(login_url='login')
 def hazards_view(request):
     hazard_type = request.GET.get('type', '').strip()
     road_query = request.GET.get('road', '').strip()
@@ -185,6 +238,7 @@ def hazards_view(request):
     })
 
 
+@login_required(login_url='login')
 def devices_view(request):
     query = request.GET.get('q', '').strip()
     status_filter = request.GET.get('status', '').strip()
@@ -221,6 +275,7 @@ def devices_view(request):
     })
 
 
+@login_required(login_url='login')
 def device_detail_view(request, device_id):
     device = get_object_or_404(Device.objects.select_related('current_map_version'), device_id=device_id)
     telemetry = TelemetryRecord.objects.filter(device=device).order_by('-timestamp')
@@ -276,6 +331,7 @@ def device_detail_view(request, device_id):
     })
 
 
+@login_required(login_url='login')
 def violations_view(request):
     severity = request.GET.get('severity', '').strip()
     device_search = request.GET.get('device', '').strip()
@@ -294,6 +350,7 @@ def violations_view(request):
     })
 
 
+@login_required(login_url='login')
 def versions_view(request):
     versions = MapVersion.objects.order_by('-created_at')[:10]
     return render(request, 'dashboard/versions.html', {
@@ -302,6 +359,7 @@ def versions_view(request):
     })
 
 
+@login_required(login_url='login')
 def analytics_view(request):
     status_counts = {'online': 0, 'recent': 0, 'offline': 0}
     for device in Device.objects.all():

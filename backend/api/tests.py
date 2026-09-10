@@ -8,6 +8,19 @@ from django.urls import reverse
 from .models import Device, Hazard, MapVersion, Road, RoadNode, TelemetryRecord, Violation
 
 
+class DashboardLoginAccessTests(TestCase):
+    def test_dashboard_pages_redirect_to_login_when_not_authenticated(self):
+        response = self.client.get(reverse('dashboard-home'))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login/?next=/overview/', response.headers['Location'])
+
+    def test_login_page_exposes_default_admin_credentials_with_generated_password_notice(self):
+        response = self.client.get(reverse('login'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'admin')
+        self.assertContains(response, 'Default password')
+
+
 class RoadUpdateTests(TestCase):
     def test_batch_upload_accepts_raw_array_and_isolates_bad_records(self):
         road = Road.objects.create(name='Cairo Road', speed_limit=60)
