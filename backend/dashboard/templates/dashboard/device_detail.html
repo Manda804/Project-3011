@@ -136,10 +136,14 @@
     const deviceId = '{{ device.device_id|escapejs }}';
     const initialLocation = {{ latest_location_json|safe }};
     const locationMap = L.map('device-location-map').setView(initialLocation ? [initialLocation.latitude, initialLocation.longitude] : [-12.8024, 28.2132], initialLocation ? 15 : 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(locationMap);
+      }
+    ).addTo(locationMap);
     let locationMarker = null;
 
     const syncToast = document.createElement('div');
