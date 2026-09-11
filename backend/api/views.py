@@ -448,32 +448,31 @@ class MapCheckUpdateAPIView(APIView):
 
 @api_view(['POST'])
 def map_check_update(request):
+    # Safely parse body — never crash on malformed input
     try:
-        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
-    except (TypeError, ValueError, UnicodeDecodeError):
+        if request.body:
+            payload = json.loads(request.body.decode('utf-8'))
+        else:
+            payload = {}
+    except (ValueError, UnicodeDecodeError, TypeError):
         payload = {}
 
-    serializer = MapCheckUpdateSerializer(data=payload)
-    serializer.is_valid(raise_exception=True)
+    # Safe field extraction with fallbacks
+    current_version = (payload.get('current_version') or '0.0.0.0.0').strip()
+    device_id       = (payload.get('device_id') or '').strip()
 
-    device_id = serializer.validated_data['device_id']
-    current_version = serializer.validated_data['current_version']
-    _register_or_touch_device({
-        'device_id': device_id,
-        'device_name': _device_name_from_payload(payload),
-        'map_version': current_version,
+    # Get latest map version — create initial if none exists
+    latest = MapVersion.objects.current()
+    if latest is None:
+        latest = ensure_initial_map_version()
+
+    update_required = (current_version != latest.version)
+
+    return Response({
+        'update_required':  update_required,
+        'latest_version':   latest.version,
+        'current_version':  current_version,
     })
-    latest = MapVersion.objects.current() or ensure_initial_map_version()
-    generate_map_files(latest)
-
-    latest_version = latest.version
-    update_required = current_version != latest_version
-    response = {
-        'update_required': update_required,
-        'latest_version': latest_version,
-        'current_version': current_version,
-    }
-    return Response(response)
 
 
 def map_download(request, filename):
